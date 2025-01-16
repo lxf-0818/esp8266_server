@@ -17,7 +17,7 @@ Adafruit_BME280 bme; // I2C
 Adafruit_BMP280 bmp; // I2C
 SHT85 sht;
 
-extern bool BME_CNFG, BMP_CNFG, SHT_CNFG;
+bool BME_CNFG, BMP_CNFG, SHT_CNFG;
 
 int configSensors(char *sensorName)
 {
@@ -41,7 +41,7 @@ int configSensors(char *sensorName)
             sensorsInstalled++;
             continue;
         }
-        if (!SHT_CNFG && sht.begin(0x44))
+        if (!SHT_CNFG && sht.begin())
         {
             Serial.println("SHT35 detected ");
             strcpy(sensorName, "SHT35");
@@ -63,13 +63,13 @@ void readSensor(char *cmd, char *str)
 
     if (BME_CNFG)
     {
-        sprintf(str, "0x%x,%f,%f,%f", bme.sensorID(), (bme.readTemperature()) * 1.8 + 32,
+        sprintf(str, "0x%x,%f,%f,%f,", bme.sensorID(), (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
     }
     if (BMP_CNFG)
     {
-        sprintf(str, "0x%x,%f,%f", bmp.sensorID(), (bmp.readTemperature()) * 1.8 + 32,
+        sprintf(str, "0x%x,%f,%f,", bmp.sensorID(), (bmp.readTemperature()) * 1.8 + 32,
                 bmp.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
     }
@@ -78,8 +78,7 @@ void readSensor(char *cmd, char *str)
         if (sht.dataReady())
         {
             sht.read(); // default = true/fast       slow = false
-            sprintf(str, "%x,%f,%f", sht.GetSerialNumber(),sht.getFahrenheit(), sht.getHumidity());
-            Serial.println(str);
+            sprintf(str, "0x%x,%f,%f,", sht.GetSerialNumber(),sht.getFahrenheit(), sht.getHumidity());
             sensorsData.concat(str);
         }
         else
@@ -90,6 +89,7 @@ void readSensor(char *cmd, char *str)
         strcpy(str, "0");
         // Serial.printf("No devive found for %s on %s\n", cmd, Buf + 4);
     }
+    sensorsData = sensorsData.substring(0,sensorsData.length() -1);
     strcpy(tmp, sensorsData.c_str());
     uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
     uint32_t t = calcCRC32(data, strlen(tmp));
@@ -100,6 +100,5 @@ void readSensor(char *cmd, char *str)
     Serial.printf("in server aes bmp %s", encrypt_string);
 #else
     strcpy(str, tmp);
-    Serial.printf("sent to client %s\n", str);
 #endif
 }

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ESP8266WiFi.h>
 #include <AESLib.h>
+#include <ESP8266mDNS.h>
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
 AESLib aesLib;
@@ -60,8 +61,9 @@ int beginWIFI(String sensorName)
   Serial.println(WiFi.localIP());
   Serial.print("Port ");
   Serial.println(PORT); //
-
-  return 0;
+//  if (MDNS.begin("bedroom"))   //Start mDNS with name esp8266
+//       Serial.println("MDNS started");
+   return 0;
 }
 void aes_init()
 {

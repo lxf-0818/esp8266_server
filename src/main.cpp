@@ -4,32 +4,32 @@
 #define PORT 8888
 int configSensors(char *sensorName);
 void encrypt_stub(char *str, char *str2);
-void readSensor(char *Buffer, char *str);
+void readSensor(char *cmdFromClient, char *str);
 int beginWIFI(String sensorName);
+void performSystemTask(char *cmdFromClient);
 
 WiFiServer server(PORT);
 WiFiClient client;
-char Buffer[80], str[80], Buf[80], out_msg[80], encrypt_string[4096];
-bool BME_CNFG = false, BMP_CNFG = false, SHT_CNFG=false;
+char cmdFromClient[80], str[80], Buf[80], out_msg[80], encrypt_string[4096];
 char sensorName[10] = {"no device"};
+
 void setup()
 {
- 
   Serial.begin(115200);
-  configSensors(sensorName);
+  int cnt = configSensors(sensorName);
+  Serial.printf("# sensor's sensed %d\n", cnt);
   if (strcmp(sensorName, "no device"))
   {
     server.begin();
     beginWIFI(sensorName);
   }
-  else 
+  else
     Serial.println("\n No Device Found check wiring");
 }
-
 void loop()
 {
   int j = 0;
-  char tmp[512];
+  char results[512];
   client = server.accept(); //
   if (client)
   {
@@ -51,18 +51,23 @@ void loop()
         break;
       }
     }
+
+    bzero(cmdFromClient, sizeof(cmdFromClient));
     // read data from the connected client
     while (client.available())
-      Buffer[j++] = client.read();
+      cmdFromClient[j++] = client.read();
 
-    if (!j)
+    if (strnstr(cmdFromClient, "all", 3))
+      readSensor(cmdFromClient, results);
+    else 
     {
-      Serial.println(">>> empty string from client!");
-      client.stop();
+      performSystemTask(cmdFromClient);
+      String IP = WiFi.localIP().toString();
+      sprintf(results, "%s_%s", cmdFromClient, IP.c_str());
     }
-    readSensor(Buffer, tmp);
-    client.print(tmp);
-    Serial.println(tmp);
+    client.print(results);
+    client.stop();
+    Serial.println(results);
 
   } // end if client
 
