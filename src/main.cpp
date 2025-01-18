@@ -7,68 +7,75 @@ void encrypt_stub(char *str, char *str2);
 void readSensor(char *cmdFromClient, char *str);
 int beginWIFI(String sensorName);
 void performSystemTask(char *cmdFromClient);
+void scanPorts();
+
+bool BME_CNFG = false, BMP_CNFG = false, SHT_CNFG = false, ADC_CNFG=false;
 
 WiFiServer server(PORT);
 WiFiClient client;
 char cmdFromClient[80], str[80], Buf[80], out_msg[80], encrypt_string[4096];
-char sensorName[10] = {"no device"};
+char sensorName[100] = {0};
 
 void setup()
 {
   Serial.begin(115200);
+  Serial.println();
   int cnt = configSensors(sensorName);
-  Serial.printf("# sensor's sensed %d\n", cnt);
-  if (strcmp(sensorName, "no device"))
+  if (cnt > 0)
   {
     server.begin();
     beginWIFI(sensorName);
+
   }
   else
     Serial.println("\n No Device Found check wiring");
+
+ // scanPorts();
 }
-void loop()
-{
-  int j = 0;
-  char results[512];
-  client = server.accept(); //
-  if (client)
+
+  void loop()
   {
-    if (client.connected())
+    int j = 0;
+    char results[512];
+    client = server.accept(); //
+    if (client)
     {
-      Serial.print(client.remoteIP());
-      // add firewall
-      Serial.println("  Client(esp32) Connected to Server");
-    }
-    unsigned long timeout = millis();
-    // wait for data to be available
-    while (client.available() == 0)
-    {
-      if (millis() - timeout > 5000)
+      if (client.connected())
       {
-        Serial.println(">>> server Timeout !");
-        client.stop();
-        delay(60);
-        break;
+        Serial.print(client.remoteIP());
+        // add firewall
+        Serial.println("  Client(esp32) Connected to Server");
       }
-    }
+      unsigned long timeout = millis();
+      // wait for data to be available
+      while (client.available() == 0)
+      {
+        if (millis() - timeout > 5000)
+        {
+          Serial.println(">>> server Timeout !");
+          client.stop();
+          delay(60);
+          break;
+        }
+      }
 
-    bzero(cmdFromClient, sizeof(cmdFromClient));
-    // read data from the connected client
-    while (client.available())
-      cmdFromClient[j++] = client.read();
+      bzero(cmdFromClient, sizeof(cmdFromClient));
+      // read data from the connected client
+      while (client.available())
+        cmdFromClient[j++] = toupper(client.read());
 
-    if (strnstr(cmdFromClient, "all", 3))
-      readSensor(cmdFromClient, results);
-    else 
-    {
-      performSystemTask(cmdFromClient);
-      String IP = WiFi.localIP().toString();
-      sprintf(results, "%s_%s", cmdFromClient, IP.c_str());
-    }
-    client.print(results);
-    client.stop();
-    Serial.println(results);
+      if (strnstr(cmdFromClient, "ALL", 3))
+        readSensor(cmdFromClient, results);
+      else
+      {
+        performSystemTask(cmdFromClient);
+        String IP = WiFi.localIP().toString();
+        sprintf(results, "%s_%s", cmdFromClient, IP.c_str());
+      }
+      client.print(results);
+      client.stop();
+      //Serial.println(results);
 
-  } // end if client
+    } // end if client
 
-} // end lo
+  } // end lo

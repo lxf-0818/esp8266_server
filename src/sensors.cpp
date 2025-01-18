@@ -3,9 +3,11 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <Adafruit_BMP280.h>
+#include <Adafruit_ADS1X15.h>
+#include <SHT85.h>
+
 #include <AESLib.h>
 #include <CRC.h>
-#include <SHT85.h>
 #define SHT85_ADDRESS 0x44
 
 #define NO_SOCKET_AES
@@ -13,45 +15,56 @@
 int configSensors(char *sensorName);
 void readSensor(char *cmd, char *str);
 
-Adafruit_BME280 bme; // I2C
-Adafruit_BMP280 bmp; // I2C
-SHT85 sht;
+// I2C
+Adafruit_BME280 bme;
+Adafruit_BMP280 bmp;
+SHT35 sht;
+Adafruit_ADS1115 adc;
 
-bool BME_CNFG, BMP_CNFG, SHT_CNFG;
+extern bool BME_CNFG, BMP_CNFG, SHT_CNFG, ADC_CNFG;
 
 int configSensors(char *sensorName)
 {
     int sensorsInstalled = 0;
-    while (1)
+    String s, sensorArray[6];
+
+    if (bme.begin(0x76))
     {
-        if (!BME_CNFG && bme.begin(0x76))
-        {
-            Serial.println("BME280 detected ");
-            strcpy(sensorName, "BME280");
-            BME_CNFG = true;
-            sensorsInstalled++;
-            continue;
-        }
-        if (!BMP_CNFG && bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID))
-        {
-            Serial.println("BMP280 detected ");
-            strcpy(sensorName, "BMP280");
-            BMP_CNFG = true;
-            Serial.println(bmp.readTemperature());
-            sensorsInstalled++;
-            continue;
-        }
-        if (!SHT_CNFG && sht.begin())
-        {
-            Serial.println("SHT35 detected ");
-            strcpy(sensorName, "SHT35");
-            SHT_CNFG = true;
-            sensorsInstalled++;
-            continue;
-        }
-        else
-            break;
+        sensorArray[sensorsInstalled] = "BME";
+        BME_CNFG = true;
+        sensorsInstalled++;
     }
+    if (bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID))
+    {
+        sensorArray[sensorsInstalled] = "BMP";
+        Serial.println(bmp.readTemperature());
+        BMP_CNFG = true;
+        sensorsInstalled++;
+    }
+    if (sht.begin())
+    {
+        sensorArray[sensorsInstalled] = "SHT";
+        SHT_CNFG = true;
+        sensorsInstalled++;
+    }
+    Wire.begin(12, 14);
+    if (adc.begin(0x48))
+    {
+        adc.setGain(GAIN_ONE); // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
+        sensorArray[sensorsInstalled] = "ADC";
+        ADC_CNFG = true;
+        sensorsInstalled++;
+        float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
+        Serial.printf("adc %f\n", volts1);
+    }
+    // create char *  for parm 1 . NOTE: pass by reference for String is bad! use char *
+    for (int j = 0; j < sensorsInstalled; j++)
+    {
+        if (j > 0)
+            strcat(sensorName, "_");
+        strcat(sensorName, sensorArray[j].c_str());
+    }
+
     return sensorsInstalled;
 }
 
@@ -78,18 +91,25 @@ void readSensor(char *cmd, char *str)
         if (sht.dataReady())
         {
             sht.read(); // default = true/fast       slow = false
-            sprintf(str, "0x%x,%f,%f,", sht.GetSerialNumber(),sht.getFahrenheit(), sht.getHumidity());
+            sprintf(str, "0x%x,%f,%f,", sht.getType(), sht.getFahrenheit(), sht.getHumidity());
             sensorsData.concat(str);
         }
         else
             strcpy(str, "sht data not ready");
     }
-    else
+    if (ADC_CNFG)
     {
-        strcpy(str, "0");
-        // Serial.printf("No devive found for %s on %s\n", cmd, Buf + 4);
+        Wire.begin(12, 14);
+        float volts0 = 12.5;
+        float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
+        sprintf(str, "0x%x,%f,%f", 0x10,volts0, volts1);
+        Serial.printf("A0 is hard code %s\n",str);
+        sensorsData.concat(str);
     }
-    sensorsData = sensorsData.substring(0,sensorsData.length() -1);
+    else
+        strcpy(str, "0");
+
+    sensorsData = sensorsData.substring(0, sensorsData.length() - 1); // remove the last ","
     strcpy(tmp, sensorsData.c_str());
     uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
     uint32_t t = calcCRC32(data, strlen(tmp));
@@ -97,7 +117,7 @@ void readSensor(char *cmd, char *str)
     sprintf(tmp, "%x:%s", t, sensorsData.c_str());
 #ifndef NO_SOCKET_AES
     encrypt_stub(str, encrypt_string);
-    Serial.printf("in server aes bmp %s", encrypt_string);
+    Serial.printf("in server aes %s", encrypt_string);
 #else
     strcpy(str, tmp);
 #endif

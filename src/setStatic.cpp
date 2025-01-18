@@ -9,38 +9,44 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 int setStaticIP(String sensorName)
 {
+  Serial.println(sensorName);
 
   int rc = 0;
   // Set your Static IP address
-  int lastOctal;
-  if (sensorName == "ADS1115")
+
+  int lastOctal = 0;
+  if (sensorName == "ADS")
     lastOctal = 180;
-  else if (sensorName == "BME280")
+  else if (sensorName == "BME")
     lastOctal = 181;
-  else if (sensorName == "BMP280")
+  else if (sensorName == "BMP")
     lastOctal = 191;
-  else if (sensorName == "SHT35")
+  else if (sensorName == "SHT")
     lastOctal = 182;
-  else if (sensorName == "DS18B20")
+  else if (sensorName == "DS1")
     lastOctal = 183;
-  else
-    return 10;
+
+  Serial.println("lastOctal is forced");
+  lastOctal = 191;
 
   /* original
     WiFi.mode(WIFI_STA);
- */
-
-  IPAddress local_IP(192, 168, 1, lastOctal);
-  IPAddress gateway(192, 168, 1, 1);
-  IPAddress subnet(255, 255, 0, 0);
-  IPAddress primaryDNS(8, 8, 8, 8);   // optional?
-  IPAddress secondaryDNS(8, 8, 4, 4); // optional?
-
-  // Configures static IP address
-  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+  */
+  if (lastOctal)
   {
-    Serial.println("STA Failed to configure");
-    return 1;
+    Serial.println(lastOctal);
+    IPAddress local_IP(192, 168, 1, lastOctal);
+    IPAddress gateway(192, 168, 1, 1);
+    IPAddress subnet(255, 255, 0, 0);
+    IPAddress primaryDNS(8, 8, 8, 8);   // optional?
+    IPAddress secondaryDNS(8, 8, 4, 4); // optional?
+
+    // Configures static IP address
+    if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+    {
+      Serial.println("STA Failed to configure");
+      return 1;
+    }
   }
   Wire.begin(12, 14);
   Wire.beginTransmission(SSD_ADDR);
@@ -56,9 +62,8 @@ int setStaticIP(String sensorName)
     display.setTextColor(WHITE);
     display.setCursor(0, 0);
     display.println("server PIO");
-    display.println(sensorName);
-    display.setTextSize(2);
     display.println(WiFi.localIP());
+    display.println(sensorName);
     display.display();
   }
   Wire.begin(4, 5); // set scl sda to default
