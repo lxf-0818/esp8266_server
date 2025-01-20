@@ -1,53 +1,50 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <Wire.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
+
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 #include <Adafruit_SSD1306.h>
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define SSD_ADDR 0x3c
 
-int setStaticIP(String sensorName)
+const char *getNextIPaddr = "http://192.168.1.252/static_IP.php";
+
+int setStaticIP(String sensorName, char *ssid, char *psw)
 {
+  HTTPClient http;
+  WiFiClient client;
   Serial.println(sensorName);
-
   int rc = 0;
-  // Set your Static IP address
-
-  int lastOctal = 0;
-  if (sensorName == "ADS")
-    lastOctal = 180;
-  else if (sensorName == "BME")
-    lastOctal = 181;
-  else if (sensorName == "BMP")
-    lastOctal = 191;
-  else if (sensorName == "SHT")
-    lastOctal = 182;
-  else if (sensorName == "DS1")
-    lastOctal = 183;
-
-  Serial.println("lastOctal is forced");
-  lastOctal = 191;
-
-  /* original
-    WiFi.mode(WIFI_STA);
-  */
-  if (lastOctal)
+  // connect wifi temporary for ip address SFB!
+  // initWiFi(ssid,psw) ;
+  http.begin(client, getNextIPaddr);
+  int httpResponseCode = http.GET();
+  Serial.printf("httpResponseCode:%d\n", httpResponseCode);
+  if (httpResponseCode != 200)
   {
-    Serial.println(lastOctal);
-    IPAddress local_IP(192, 168, 1, lastOctal);
-    IPAddress gateway(192, 168, 1, 1);
-    IPAddress subnet(255, 255, 0, 0);
-    IPAddress primaryDNS(8, 8, 8, 8);   // optional?
-    IPAddress secondaryDNS(8, 8, 4, 4); // optional?
-
-    // Configures static IP address
-    if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
-    {
-      Serial.println("STA Failed to configure");
-      return 1;
-    }
+    //  ESP.restart();
   }
+  String payload = http.getString();
+  Serial.println(payload);
+  int lastOctal = (payload.toInt()) + 179; // Set Static IP address
+  http.end();
+
+  IPAddress local_IP(192, 168, 1, lastOctal);
+  IPAddress gateway(192, 168, 1, 1);
+  IPAddress subnet(255, 255, 0, 0);
+  IPAddress primaryDNS(8, 8, 8, 8);   // optional?
+  IPAddress secondaryDNS(8, 8, 4, 4); // optional?
+
+  // Configures static IP address
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+  {
+    Serial.println("STA Failed to configure");
+    return 1;
+  }
+
   Wire.begin(12, 14);
   Wire.beginTransmission(SSD_ADDR);
   bool SSD_CONFIG = Wire.endTransmission();
@@ -69,3 +66,13 @@ int setStaticIP(String sensorName)
   Wire.begin(4, 5); // set scl sda to default
   return rc;
 }
+// void initWiFi() {
+//   WiFi.mode(WIFI_STA);
+//   WiFi.begin(ssid, password);
+//   Serial.print("Connecting to WiFi ..");
+//   while (WiFi.status() != WL_CONNECTED) {
+//     Serial.print('.');
+//     delay(1000);
+//   }
+//   Serial.println(WiFi.localIP());
+// }

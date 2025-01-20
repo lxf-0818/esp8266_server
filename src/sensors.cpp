@@ -55,7 +55,6 @@ int configSensors(char *sensorName)
     if (bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID))
     {
         sensorArray[sensorsInstalled] = "BMP";
-        Serial.println(bmp.readTemperature());
         BMP_CNFG = true;
         sensorsInstalled++;
     }
@@ -74,7 +73,6 @@ int configSensors(char *sensorName)
         ADC_CNFG = true;
         sensorsInstalled++;
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
-        Serial.printf("adc %f\n", volts1);
     }
     // create char *  for parm 1 . NOTE: pass by reference for String is bad! use char *
     for (int j = 0; j < sensorsInstalled; j++)
@@ -150,14 +148,15 @@ void scanPorts()
         {
             if (i != j)
             {
-                //  Serial.print("Scanning (SDA : SCL) - " + portMap[i] + " : " + portMap[j] + " - ");
                 Wire.begin(portArray[i], portArray[j]);
                 if (check_if_exist_I2C())
                 {
+#ifdef DEBUG_SCAN
 
                     Serial.print(portArray[i]);
                     Serial.print(",");
                     Serial.println(portArray[j]);
+#endif
                 }
             }
         }
@@ -177,12 +176,15 @@ int check_if_exist_I2C()
         error = Wire.endTransmission();
         if (!error)
         {
+#ifdef DEBUG_SCAN
             Serial.print("I2C device found at address ");
             if (address < 16)
                 Serial.print("0");
+
             Serial.print(address);
             Serial.print("  0x");
             Serial.println(address, HEX);
+#endif
             devices[myCnt].I2Caddr = address;
             devices[myCnt].sca = portArray[i];
             devices[myCnt].scl = portArray[j];

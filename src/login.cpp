@@ -24,7 +24,7 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[]);
 void encrypt_stub(char *str, char *str2);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext);
 int readCiphertext(char *cssid_psw_aes);
-int setStaticIP(String sensorName);
+int setStaticIP(String sensorName,char *ssid,char *psw);
 
 int beginWIFI(String sensorName)
 {
@@ -32,10 +32,8 @@ int beginWIFI(String sensorName)
   char cssid_psw_aes[580];
   int index;
 
-  setStaticIP(sensorName);
   aes_init();
-
-  if (readCiphertext(cssid_psw_aes))
+  if (readCiphertext(cssid_psw_aes)) // the WiFi credentials in file is encrypted 
     ESP.restart();
   memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), enc_iv_to, cleartext);
@@ -44,6 +42,8 @@ int beginWIFI(String sensorName)
   index = temp.indexOf(":");
   ssid = temp.substring(0, index);
   pass = temp.substring(index + 1);
+  
+  setStaticIP(sensorName,(char *)ssid.c_str(),(char *)pass.c_str());
 
   // Note: need to time out
   WiFi.begin(ssid.c_str(), pass.c_str()); // Connect to wifi

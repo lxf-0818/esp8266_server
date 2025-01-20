@@ -9,18 +9,13 @@ int beginWIFI(String sensorName);
 void performSystemTask(char *cmdFromClient);
 void scanPorts();
 
-
 bool BME_CNFG = false, BMP_CNFG = false, SHT_CNFG = false, ADC_CNFG = false;
-
 WiFiServer server(PORT);
 WiFiClient client;
 char cmdFromClient[80], str[80], Buf[80], out_msg[80], encrypt_string[4096];
 char sensorName[100] = {0};
-
-
 void setup()
 {
-  
   Serial.begin(115200);
   Serial.println();
   int cnt = configSensors(sensorName);
@@ -65,7 +60,7 @@ void loop()
     while (client.available())
       cmdFromClient[j++] = toupper(client.read());
 
-    if (strnstr(cmdFromClient, "ALL", 3))
+    if (strnstr(cmdFromClient, "ALL", 3))   //
       readSensor(cmdFromClient, results);
     else
     {
