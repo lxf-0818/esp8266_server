@@ -5,6 +5,7 @@
 #include <Adafruit_BMP280.h>
 #include <Adafruit_ADS1X15.h>
 #include <SHT85.h>
+#define DEVICE 5
 
 #include <AESLib.h>
 #include <CRC.h>
@@ -12,22 +13,39 @@
 
 #define NO_SOCKET_AES
 #define SEALEVELPRESSURE_HPA (1013.25)
+int myCnt = 0;
 int configSensors(char *sensorName);
 void readSensor(char *cmd, char *str);
+int getI2C_pins(int addr);
+
+uint8_t i, j;
+int check_if_exist_I2C();
+uint8_t portArray[] = {16, 5, 4, 0, 2, 14, 12, 13};
+String portMap[] = {"GPIO16", "GPIO5", "GPIO4", "GPIO0", "GPIO2", "GPIO14", "GPIO12", "GPIO13"};
 
 // I2C
 Adafruit_BME280 bme;
 Adafruit_BMP280 bmp;
 SHT35 sht;
 Adafruit_ADS1115 adc;
+void scanPorts();
 
 extern bool BME_CNFG, BMP_CNFG, SHT_CNFG, ADC_CNFG;
+
+struct I2C
+{
+    int I2Caddr;
+    int scl;
+    int sca;
+};
+struct I2C devices[5];
 
 int configSensors(char *sensorName)
 {
     int sensorsInstalled = 0;
-    String s, sensorArray[6];
-
+    scanPorts();
+    String s, sensorArray[DEVICE];
+    getI2C_pins(0x76);
     if (bme.begin(0x76))
     {
         sensorArray[sensorsInstalled] = "BME";
@@ -41,13 +59,14 @@ int configSensors(char *sensorName)
         BMP_CNFG = true;
         sensorsInstalled++;
     }
+    getI2C_pins(0x44);
     if (sht.begin())
     {
         sensorArray[sensorsInstalled] = "SHT";
         SHT_CNFG = true;
         sensorsInstalled++;
     }
-    Wire.begin(12, 14);
+    getI2C_pins(0x48);
     if (adc.begin(0x48))
     {
         adc.setGain(GAIN_ONE); // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
@@ -99,11 +118,11 @@ void readSensor(char *cmd, char *str)
     }
     if (ADC_CNFG)
     {
-        Wire.begin(12, 14);
+        getI2C_pins(0x48);
         float volts0 = 12.5;
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
-        sprintf(str, "0x%x,%f,%f", 0x10,volts0, volts1);
-        Serial.printf("A0 is hard code %s\n",str);
+        sprintf(str, "0x%x,%f,%f", 0x10, volts0, volts1);
+        Serial.printf("A0 is hard code %s\n", str);
         sensorsData.concat(str);
     }
     else
@@ -121,4 +140,74 @@ void readSensor(char *cmd, char *str)
 #else
     strcpy(str, tmp);
 #endif
+}
+
+void scanPorts()
+{
+    for (i = 0; i < sizeof(portArray); i++)
+    {
+        for (j = 0; j < sizeof(portArray); j++)
+        {
+            if (i != j)
+            {
+                //  Serial.print("Scanning (SDA : SCL) - " + portMap[i] + " : " + portMap[j] + " - ");
+                Wire.begin(portArray[i], portArray[j]);
+                if (check_if_exist_I2C())
+                {
+
+                    Serial.print(portArray[i]);
+                    Serial.print(",");
+                    Serial.println(portArray[j]);
+                }
+            }
+        }
+    }
+}
+
+int check_if_exist_I2C()
+{
+    byte error, address;
+    int nDevices = 0;
+    for (address = 1; address < 127; address++)
+    {
+        // The i2c_scanner uses the return value of
+        // the Write.endTransmisstion to see if
+        // a device did acknowledge to the address.
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+        if (!error)
+        {
+            Serial.print("I2C device found at address ");
+            if (address < 16)
+                Serial.print("0");
+            Serial.print(address);
+            Serial.print("  0x");
+            Serial.println(address, HEX);
+            devices[myCnt].I2Caddr = address;
+            devices[myCnt].sca = portArray[i];
+            devices[myCnt].scl = portArray[j];
+            myCnt++;
+            nDevices++;
+        }
+        else if (error == 4)
+        {
+            Serial.print("Unknow error at address 0x");
+            if (address < 16)
+                Serial.print("0");
+            Serial.println(address, HEX);
+        }
+    }
+    return nDevices;
+}
+int getI2C_pins(int addr)
+{
+    for (int j = 0; j < DEVICE; j++)
+    {
+        if (addr == devices[j].I2Caddr)
+        {
+            Wire.begin(devices[j].sca, devices[j].scl);
+            return 1;
+        }
+    }
+    return 0;
 }
