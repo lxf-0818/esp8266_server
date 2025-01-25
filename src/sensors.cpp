@@ -9,14 +9,18 @@
 
 #include <AESLib.h>
 #include <CRC.h>
-#define SHT85_ADDRESS 0x44
+#define SHT_ADDRESS 0x44
+#define BMx_ADDRESS 0x76
+#define ADC_ADDRESS 0x48
+#define MCP_ADDRESS 0x18
 
 #define NO_SOCKET_AES
 #define SEALEVELPRESSURE_HPA (1013.25)
+//#define DEBUG_SCAN
 int myCnt = 0;
 int configSensors(char *sensorName);
 void readSensor(char *cmd, char *str);
-int getI2C_pins(int addr);
+int setWireBegin(int addr);
 
 uint8_t i, j;
 int check_if_exist_I2C();
@@ -28,10 +32,10 @@ Adafruit_BME280 bme;
 Adafruit_BMP280 bmp;
 SHT35 sht;
 Adafruit_ADS1115 adc;
+
 void scanPorts();
 
-extern bool BME_CNFG, BMP_CNFG, SHT_CNFG, ADC_CNFG;
-
+bool BME_CNFG = false, BMP_CNFG = false, SHT_CNFG = false, ADC_CNFG = false, MCP = false;
 struct I2C
 {
     int I2Caddr;
@@ -45,8 +49,8 @@ int configSensors(char *sensorName)
     int sensorsInstalled = 0;
     scanPorts();
     String s, sensorArray[DEVICE];
-    getI2C_pins(0x76);
-    if (bme.begin(0x76))
+    setWireBegin(BMx_ADDRESS);
+    if (bme.begin(BMx_ADDRESS))
     {
         sensorArray[sensorsInstalled] = "BME";
         BME_CNFG = true;
@@ -58,21 +62,20 @@ int configSensors(char *sensorName)
         BMP_CNFG = true;
         sensorsInstalled++;
     }
-    getI2C_pins(0x44);
-    if (sht.begin())
+    setWireBegin(SHT_ADDRESS);
+    if (sht.begin(0x44))
     {
         sensorArray[sensorsInstalled] = "SHT";
         SHT_CNFG = true;
         sensorsInstalled++;
     }
-    getI2C_pins(0x48);
-    if (adc.begin(0x48))
+    setWireBegin(ADC_ADDRESS);
+    if (adc.begin(ADC_ADDRESS))
     {
         adc.setGain(GAIN_ONE); // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
         sensorArray[sensorsInstalled] = "ADC";
         ADC_CNFG = true;
         sensorsInstalled++;
-        float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
     }
     // create char *  for parm 1 . NOTE: pass by reference for String is bad! use char *
     for (int j = 0; j < sensorsInstalled; j++)
@@ -93,22 +96,24 @@ void readSensor(char *cmd, char *str)
 
     if (BME_CNFG)
     {
-        sprintf(str, "0x%x,%f,%f,%f,", bme.sensorID(), (bme.readTemperature()) * 1.8 + 32,
+        setWireBegin(ADC_ADDRESS);
+        sprintf(str, "0x%x,%f,%f,%f,", BME280_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
     }
     if (BMP_CNFG)
     {
-        sprintf(str, "0x%x,%f,%f,", bmp.sensorID(), (bmp.readTemperature()) * 1.8 + 32,
+        sprintf(str, "0x%x,%f,%f,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
                 bmp.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
     }
+    setWireBegin(SHT_ADDRESS);
     if (SHT_CNFG)
     {
         if (sht.dataReady())
         {
             sht.read(); // default = true/fast       slow = false
-            sprintf(str, "0x%x,%f,%f,", sht.getType(), sht.getFahrenheit(), sht.getHumidity());
+            sprintf(str, "0x%x,%f,%f,", SHT_ADDRESS, sht.getFahrenheit(), sht.getHumidity());
             sensorsData.concat(str);
         }
         else
@@ -116,10 +121,10 @@ void readSensor(char *cmd, char *str)
     }
     if (ADC_CNFG)
     {
-        getI2C_pins(0x48);
+        setWireBegin(0x48);
         float volts0 = 12.5;
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
-        sprintf(str, "0x%x,%f,%f", 0x10, volts0, volts1);
+        sprintf(str, "0x%x,%f,%f", ADC_ADDRESS, volts0, volts1);
         Serial.printf("A0 is hard code %s\n", str);
         sensorsData.concat(str);
     }
@@ -194,19 +199,21 @@ int check_if_exist_I2C()
         else if (error == 4)
         {
             Serial.print("Unknow error at address 0x");
-            if (address < 16)
-                Serial.print("0");
-            Serial.println(address, HEX);
+            ESP.reset();
+           
         }
     }
     return nDevices;
 }
-int getI2C_pins(int addr)
+int setWireBegin(int addr)
 {
     for (int j = 0; j < DEVICE; j++)
     {
         if (addr == devices[j].I2Caddr)
         {
+#ifdef DEBUG_SCAN
+            Serial.printf("-> address %x sca %d scl %d \n", addr, devices[j].sca, devices[j].scl);
+#endif
             Wire.begin(devices[j].sca, devices[j].scl);
             return 1;
         }
