@@ -16,7 +16,7 @@
 
 #define NO_SOCKET_AES
 #define SEALEVELPRESSURE_HPA (1013.25)
-//#define DEBUG_SCAN
+#define DEBUG_SCAN
 int myCnt = 0;
 int configSensors(char *sensorName);
 void readSensor(char *cmd, char *str);
@@ -30,11 +30,10 @@ String portMap[] = {"GPIO16", "GPIO5", "GPIO4", "GPIO0", "GPIO2", "GPIO14", "GPI
 // I2C
 Adafruit_BME280 bme;
 Adafruit_BMP280 bmp;
-SHT35 sht;
 Adafruit_ADS1115 adc;
+SHT35 sht;
 
 void scanPorts();
-
 bool BME_CNFG = false, BMP_CNFG = false, SHT_CNFG = false, ADC_CNFG = false, MCP = false;
 struct I2C
 {
@@ -77,7 +76,7 @@ int configSensors(char *sensorName)
         ADC_CNFG = true;
         sensorsInstalled++;
     }
-    // create char *  for parm 1 . NOTE: pass by reference for String is bad! use char *
+    // pass char *  for parm 1 . NOTE: pass by reference for String is bad! use char *
     for (int j = 0; j < sensorsInstalled; j++)
     {
         if (j > 0)
@@ -90,30 +89,30 @@ int configSensors(char *sensorName)
 
 void readSensor(char *cmd, char *str)
 {
-    //
     char tmp[512];
     String sensorsData;
 
     if (BME_CNFG)
     {
-        setWireBegin(ADC_ADDRESS);
-        sprintf(str, "0x%x,%f,%f,%f,", BME280_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
+        setWireBegin(BMx_ADDRESS);
+        sprintf(str, "%x,%f,%f,%f,|,", BME280_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
     }
     if (BMP_CNFG)
     {
-        sprintf(str, "0x%x,%f,%f,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
+        setWireBegin(BMx_ADDRESS);
+        sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
                 bmp.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
     }
-    setWireBegin(SHT_ADDRESS);
     if (SHT_CNFG)
     {
+        setWireBegin(SHT_ADDRESS);
         if (sht.dataReady())
         {
             sht.read(); // default = true/fast       slow = false
-            sprintf(str, "0x%x,%f,%f,", SHT_ADDRESS, sht.getFahrenheit(), sht.getHumidity());
+            sprintf(str, "%x,%f,%f,|,", SHT_ADDRESS, sht.getFahrenheit(), sht.getHumidity());
             sensorsData.concat(str);
         }
         else
@@ -122,16 +121,16 @@ void readSensor(char *cmd, char *str)
     if (ADC_CNFG)
     {
         setWireBegin(0x48);
-        float volts0 = 12.5;
+        float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0));
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
-        sprintf(str, "0x%x,%f,%f", ADC_ADDRESS, volts0, volts1);
-        Serial.printf("A0 is hard code %s\n", str);
+        sprintf(str, "%x,%f,%f,|,", ADC_ADDRESS, volts0, volts1);
+        Serial.printf("A0/A1 is conected to 3v on esp\n");
         sensorsData.concat(str);
     }
     else
         strcpy(str, "0");
 
-    sensorsData = sensorsData.substring(0, sensorsData.length() - 1); // remove the last ","
+    sensorsData = sensorsData.substring(0, sensorsData.length() - 3); // remove the last ",|,"
     strcpy(tmp, sensorsData.c_str());
     uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
     uint32_t t = calcCRC32(data, strlen(tmp));
@@ -200,7 +199,6 @@ int check_if_exist_I2C()
         {
             Serial.print("Unknow error at address 0x");
             ESP.reset();
-           
         }
     }
     return nDevices;
@@ -212,7 +210,7 @@ int setWireBegin(int addr)
         if (addr == devices[j].I2Caddr)
         {
 #ifdef DEBUG_SCAN
-            Serial.printf("-> address %x sca %d scl %d \n", addr, devices[j].sca, devices[j].scl);
+            Serial.printf("-> address 0x%x sca %d scl %d \n", addr, devices[j].sca, devices[j].scl);
 #endif
             Wire.begin(devices[j].sca, devices[j].scl);
             return 1;

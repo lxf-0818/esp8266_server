@@ -24,7 +24,7 @@ int setStaticIP(String sensorName, char *ssid, char *psw)
   Serial.println("in release mode ");
   lastOctal = tmpConnect(ssid, psw);
 #else
-  Serial.println("in debug mode for sqlstatic ip");
+  Serial.println("in debug mode for sql static ip");
   lastOctal = 181;
 #endif
   IPAddress local_IP(192, 168, 1, lastOctal);

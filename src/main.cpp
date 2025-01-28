@@ -17,7 +17,7 @@ void setup()
   int cnt =0;
   Serial.begin(115200);
   while (!Serial);
-  Serial.println();
+  Serial.println("in setup() ");
   cnt = configSensors(sensorName);
   if (cnt > 0)
   {
