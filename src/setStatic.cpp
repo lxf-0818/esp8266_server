@@ -14,8 +14,6 @@ int setWireBegin(int addr);
 
 #define SSD_ADDR 0x3c
 
-const char *getNextIPaddr = "http://192.168.1.252/static_IP.php";
-
 int setStaticIP(String sensorName, char *ssid, char *psw)
 {
   Serial.println(sensorName);
@@ -66,6 +64,7 @@ int tmpConnect(char *ssid, char *psw)
 {
   HTTPClient http;
   WiFiClient client;
+  const char *getNextIPaddr = "http://192.168.1.252/static_IP.php";
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, psw);
   Serial.print("Connecting to WiFi ..");
