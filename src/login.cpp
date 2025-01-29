@@ -5,6 +5,8 @@
 #include <ESP8266WiFi.h>
 #include <AESLib.h>
 #include <ESP8266mDNS.h>
+#include "LittleFS.h"
+
 
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
@@ -115,7 +117,7 @@ int readCiphertext(char *ssid_psw)
   String ssid_psw_aes;
   // Serial.println(decLen);
 
-  bool success = SPIFFS.begin();
+  bool success = LittleFS.begin();
   if (!success)
   {
     Serial.println("Error mounting the file system");
@@ -126,7 +128,7 @@ int readCiphertext(char *ssid_psw)
   //    Serial.println("File system mounted with success");
   //  }
 
-  File file = SPIFFS.open("/ssid_pass_aes.txt", "r");
+  File file = LittleFS.open("/ssid_pass_aes.txt", "r");
   if (!file)
   {
     Serial.println("Failed to open ssid_pass_aes.txt file for reading");
