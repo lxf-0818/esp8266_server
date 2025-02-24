@@ -3,7 +3,7 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include <Wire.h>
-#define DEBUG
+// #define DEBUG
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 #include <Adafruit_SSD1306.h>
@@ -11,20 +11,18 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 int tmpConnect(char *ssid, char *psw);
 int setWireBegin(int addr);
+void upDateDB(String sensorName);
 
 #define SSD_ADDR 0x3c
 
 int setStaticIP(String sensorName, char *ssid, char *psw)
 {
-  Serial.println(sensorName);
   int rc = 0, lastOctal;
-#ifndef DEBUG
-  Serial.println("in release mode ");
+
   lastOctal = tmpConnect(ssid, psw);
-#else
-  Serial.println("in debug mode for sql static ip");
-  lastOctal = 181;
-#endif
+  if (lastOctal < 180)
+    return lastOctal;
+  String IP = "192.168.1." + lastOctal;
   IPAddress local_IP(192, 168, 1, lastOctal);
   IPAddress gateway(192, 168, 1, 1);
   IPAddress subnet(255, 255, 0, 0);
@@ -39,8 +37,6 @@ int setStaticIP(String sensorName, char *ssid, char *psw)
   }
 
   setWireBegin(SSD_ADDR);
-
-  Wire.begin(12, 14);
   Wire.beginTransmission(SSD_ADDR);
   bool SSD_CONFIG = Wire.endTransmission();
   if (!SSD_CONFIG)
@@ -57,33 +53,70 @@ int setStaticIP(String sensorName, char *ssid, char *psw)
     display.println(sensorName);
     display.display();
   }
-  Wire.begin(4, 5); // set scl sda to default
   return rc;
 }
 int tmpConnect(char *ssid, char *psw)
 {
   HTTPClient http;
-  WiFiClient client;
-  const char *getNextIPaddr = "http://192.168.1.252/static_IP.php";
+  WiFiClient client_sql;
+  String apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
+  char Buf[80];
+  String payload;
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, psw);
   Serial.print("Connecting to WiFi ..");
   while (WiFi.status() != WL_CONNECTED)
   {
-    Serial.print('.');
+//    Serial.print('.');
     delay(1000);
   }
   Serial.println(WiFi.localIP());
-  http.begin(client, getNextIPaddr);
-  int httpResponseCode = http.GET();
-  Serial.printf("httpResponseCode:%d\n", httpResponseCode);
-  if (httpResponseCode != 200)
-  {
-    //  ESP.restart();
-  }
+
+  WiFi.macAddress().toCharArray(Buf, sizeof(Buf));
+  
+  String serverName = "http://192.168.1.252/isMACinDB.php";
+  String httpRequestData = "api_key=" + apiKeyValue + "&macAddress=" + (String)Buf;
+  http.begin(client_sql, serverName.c_str());
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  delay(500);
+  int httpResponseCode = http.POST(httpRequestData);
+  payload = http.getString();
+  Serial.printf("http rc %d payload %s mac %s \n", httpResponseCode, payload.c_str(),Buf);
+  payload = http.getString();
   WiFi.disconnect();
-  String payload = http.getString();
-  Serial.println(payload);
   http.end();
-  return (payload.toInt()) + 179; // Set Static IP address
+  char *token = strtok((char *)payload.c_str(), ",");
+  Serial.printf("payload %s token %s\n",payload.c_str(),token);
+  int pid = atoi(token); //
+  
+  Serial.printf("lastOctal %d\n", pid+180);
+  #define DEVICES 5
+  if (pid < 0 || pid > DEVICES)
+    return pid; // ip/mac db empty?
+  return pid + 180; // Set Static IP address
+}
+void upDateDB(String sensorName)
+{
+  WiFiClient client_sql;
+  String apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
+  HTTPClient http;
+  int httpResponseCode;
+  char Buf[80];
+  String payload;
+
+  WiFi.macAddress().toCharArray(Buf, sizeof(Buf));
+  String serverName = "http://192.168.1.252/saveIP.php";
+  String IP = WiFi.localIP().toString();
+  String httpRequestData = "api_key=" + apiKeyValue + "&board=" + "esp8266" +
+                           "&location=" + sensorLocation + "&IPv4Address=" + IP +
+                           "&macAddress=" + (String)Buf + "&sensor=" + sensorName;
+
+  http.begin(client_sql, serverName.c_str());
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  delay(500);
+  httpResponseCode = http.POST(httpRequestData);
+  payload = http.getString();
+  Serial.printf("http rc %d payload %s \n", httpResponseCode, payload.c_str());
+  http.end();
+  return;
 }

@@ -7,10 +7,10 @@
 #include <ESP8266mDNS.h>
 #include "LittleFS.h"
 
-
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
 AESLib aesLib;
+// extern const char *ipDelete = "http://192.168.1.252/deleteIP.php";
 
 // AES Encryption Key (same as in node-js example)
 byte aes_key[] = {0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C};
@@ -26,7 +26,8 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[]);
 void encrypt_stub(char *str, char *str2);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext);
 int readCiphertext(char *cssid_psw_aes);
-int setStaticIP(String sensorName,char *ssid,char *psw);
+int setStaticIP(String sensorName, char *ssid, char *psw);
+void upDateDB(String sensorName);
 
 int beginWIFI(String sensorName)
 {
@@ -34,8 +35,9 @@ int beginWIFI(String sensorName)
   char cssid_psw_aes[580];
   int index;
 
+  // the WiFi credentials are aes encrypted and stored as text file on chip using LittelFS
   aes_init();
-  if (readCiphertext(cssid_psw_aes)) // the WiFi credentials in file is encrypted 
+  if (readCiphertext(cssid_psw_aes))
     ESP.restart();
   memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), enc_iv_to, cleartext);
@@ -44,8 +46,24 @@ int beginWIFI(String sensorName)
   index = temp.indexOf(":");
   ssid = temp.substring(0, index);
   pass = temp.substring(index + 1);
-  
-  setStaticIP(sensorName,(char *)ssid.c_str(),(char *)pass.c_str());
+
+  // config "next" static ip to device
+  int rc = setStaticIP(sensorName, (char *)ssid.c_str(), (char *)pass.c_str());
+  switch (rc)
+  {
+  case 99:
+    Serial.println("Invalid API Key to php scrip! ");
+    ESP.reset();
+    break;
+  case 98:
+    Serial.println("ipStatic DB empty! ");
+    ESP.reset();
+    break;
+  default:
+    //rial.printf("rc %x\n,rc");
+    // ESP.reset();
+    break;
+  }
 
   // Note: need to time out
   WiFi.begin(ssid.c_str(), pass.c_str()); // Connect to wifi
@@ -64,16 +82,15 @@ int beginWIFI(String sensorName)
   Serial.println(WiFi.localIP());
   Serial.print("Port ");
   Serial.println(PORT); //
-//  if (MDNS.begin("bedroom"))   //Start mDNS with name esp8266
-//       Serial.println("MDNS started");
-   return 0;
+
+  upDateDB(sensorName);
+
+  return 0;
 }
 void aes_init()
 {
   // aesLib.gen_iv(aes_iv);
   aesLib.set_paddingmode((paddingMode)0);
-  memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
-  memcpy(enc_iv_from, aes_iv, sizeof(aes_iv));
 }
 
 void encrypt_stub(char *str, char *aes_encrypt)

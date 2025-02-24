@@ -8,10 +8,10 @@ void readSensor(char *cmdFromClient, char *str);
 int beginWIFI(String sensorName);
 void performSystemTask(char *cmdFromClient);
 void scanPorts();
-WiFiServer server(PORT);
+
+WiFiServer server(PORT);   //port to listen on
 WiFiClient client;
-char cmdFromClient[80], str[80], Buf[80], out_msg[80], encrypt_string[4096];
-char sensorName[100] = {0};
+char cmdFromClient[80], sensorName[100] = {0} , str[80], Buf[80]  ;   
 void setup()
 {
   int cnt =0;

@@ -5,7 +5,6 @@
 #include <Adafruit_BMP280.h>
 #include <Adafruit_ADS1X15.h>
 #include <SHT85.h>
-#define DEVICE 5
 
 #include <AESLib.h>
 #include <CRC.h>
@@ -13,10 +12,11 @@
 #define BMx_ADDRESS 0x76
 #define ADC_ADDRESS 0x48
 #define MCP_ADDRESS 0x18
-
+#define DEVICES 5
 #define NO_SOCKET_AES
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define DEBUG_SCAN
+
 int myCnt = 0;
 int configSensors(char *sensorName);
 void readSensor(char *cmd, char *str);
@@ -41,13 +41,15 @@ struct I2C
     int scl;
     int sca;
 };
-struct I2C devices[5];
+struct I2C devices[DEVICES];
 
 int configSensors(char *sensorName)
 {
     int sensorsInstalled = 0;
+    String s, sensorArray[DEVICES];
+
     scanPorts();
-    String s, sensorArray[DEVICE];
+
     setWireBegin(BMx_ADDRESS);
     if (bme.begin(BMx_ADDRESS))
     {
@@ -55,14 +57,15 @@ int configSensors(char *sensorName)
         BME_CNFG = true;
         sensorsInstalled++;
     }
-    if (bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID))
+    if (bmp.begin(BMx_ADDRESS, BMP280_CHIPID))
     {
         sensorArray[sensorsInstalled] = "BMP";
         BMP_CNFG = true;
         sensorsInstalled++;
+
     }
     setWireBegin(SHT_ADDRESS);
-    if (sht.begin(0x44))
+    if (sht.begin(SHT_ADDRESS))
     {
         sensorArray[sensorsInstalled] = "SHT";
         SHT_CNFG = true;
@@ -76,7 +79,6 @@ int configSensors(char *sensorName)
         ADC_CNFG = true;
         sensorsInstalled++;
     }
-    // pass char *  for parm 1 . NOTE: pass by reference for String is bad! use char *
     for (int j = 0; j < sensorsInstalled; j++)
     {
         if (j > 0)
@@ -91,6 +93,9 @@ void readSensor(char *cmd, char *str)
 {
     char tmp[512];
     String sensorsData;
+    int deviceCnt = 0;
+
+    (void)cmd;
 
     if (BME_CNFG)
     {
@@ -98,6 +103,7 @@ void readSensor(char *cmd, char *str)
         sprintf(str, "%x,%f,%f,%f,|,", BME280_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
+        deviceCnt++;
     }
     if (BMP_CNFG)
     {
@@ -105,6 +111,7 @@ void readSensor(char *cmd, char *str)
         sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
                 bmp.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
+        deviceCnt++;
     }
     if (SHT_CNFG)
     {
@@ -114,9 +121,10 @@ void readSensor(char *cmd, char *str)
             sht.read(); // default = true/fast       slow = false
             sprintf(str, "%x,%f,%f,|,", SHT_ADDRESS, sht.getFahrenheit(), sht.getHumidity());
             sensorsData.concat(str);
+            deviceCnt++;
         }
         else
-            strcpy(str, "sht data not ready");
+            strcpy(str, "SHT data not ready");
     }
     if (ADC_CNFG)
     {
@@ -126,8 +134,9 @@ void readSensor(char *cmd, char *str)
         sprintf(str, "%x,%f,%f,|,", ADC_ADDRESS, volts0, volts1);
         Serial.printf("A0/A1 is conected to 3v on esp\n");
         sensorsData.concat(str);
+        deviceCnt++;
     }
-    else
+    if (!deviceCnt)
         strcpy(str, "0");
 
     sensorsData = sensorsData.substring(0, sensorsData.length() - 3); // remove the last ",|,"
@@ -156,7 +165,6 @@ void scanPorts()
                 if (check_if_exist_I2C())
                 {
 #ifdef DEBUG_SCAN
-
                     Serial.print(portArray[i]);
                     Serial.print(",");
                     Serial.println(portArray[j]);
@@ -191,8 +199,8 @@ int check_if_exist_I2C()
 #endif
             devices[myCnt].I2Caddr = address;
             devices[myCnt].sca = portArray[i];
-            devices[myCnt].scl = portArray[j];
-            myCnt++;
+            devices[myCnt++].scl = portArray[j];
+
             nDevices++;
         }
         else if (error == 4)
@@ -205,7 +213,7 @@ int check_if_exist_I2C()
 }
 int setWireBegin(int addr)
 {
-    for (int j = 0; j < DEVICE; j++)
+    for (int j = 0; j < DEVICES; j++)
     {
         if (addr == devices[j].I2Caddr)
         {
