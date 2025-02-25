@@ -8,16 +8,18 @@ void readSensor(char *cmdFromClient, char *str);
 int beginWIFI(String sensorName);
 void performSystemTask(char *cmdFromClient);
 void scanPorts();
+//String serverName = "http://192.168.1.252/isMACinDB.php";
+const char *ipDelete = "http://192.168.1.252/deleteIP.php";
 
-WiFiServer server(PORT);   //port to listen on
+WiFiServer server(PORT); // port to listen on
 WiFiClient client;
-char cmdFromClient[80], sensorName[100] = {0} , str[80], Buf[80]  ;   
+char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
 void setup()
 {
-  int cnt =0;
+  int cnt = 0;
   Serial.begin(115200);
   while (!Serial);
-  Serial.println("in setup() ");
+  //Serial.println("in setup() ");
   cnt = configSensors(sensorName);
   if (cnt > 0)
   {
@@ -26,7 +28,6 @@ void setup()
   }
   else
     Serial.println("\n No Device Found check wiring");
-
 }
 
 void loop()
@@ -54,12 +55,12 @@ void loop()
         break;
       }
     }
-    memset(cmdFromClient,0,sizeof(cmdFromClient));
+    memset(cmdFromClient, 0, sizeof(cmdFromClient));
     // read data from the connected client
     while (client.available())
       cmdFromClient[j++] = toupper(client.read());
 
-    if (strnstr(cmdFromClient, "ALL", 3))   //
+    if (strnstr(cmdFromClient, "ALL", 3)) //
       readSensor(cmdFromClient, results);
     else
     {

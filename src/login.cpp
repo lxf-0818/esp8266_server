@@ -5,7 +5,16 @@
 #include <ESP8266WiFi.h>
 #include <AESLib.h>
 #include <ESP8266mDNS.h>
-#include "LittleFS.h"
+#include <LittleFS.h>
+#include <ESP8266HTTPClient.h>
+
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+#define SSD_ADDR 0x3c
+
 
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
@@ -19,7 +28,7 @@ byte enc_iv_to[N_BLOCK] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 byte enc_iv_from[N_BLOCK] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 char cleartext[INPUT_BUFFER_LIMIT] = {0};      // THIS IS INPUT BUFFER (FOR TEXT)
 char ciphertext[2 * INPUT_BUFFER_LIMIT] = {0}; // THIS IS OUTPUT BUFFER (FOR BASE64-ENCODED ENCRYPTED DATA)
-
+int setWireBegin(int addr);
 void aes_init();
 int beginWIFI(String sensorName);
 uint16_t encrypt_to_ciphertext(char *msg, byte iv[]);
@@ -46,25 +55,7 @@ int beginWIFI(String sensorName)
   index = temp.indexOf(":");
   ssid = temp.substring(0, index);
   pass = temp.substring(index + 1);
-
-  // config "next" static ip to device
-  int rc = setStaticIP(sensorName, (char *)ssid.c_str(), (char *)pass.c_str());
-  switch (rc)
-  {
-  case 99:
-    Serial.println("Invalid API Key to php scrip! ");
-    ESP.reset();
-    break;
-  case 98:
-    Serial.println("ipStatic DB empty! ");
-    ESP.reset();
-    break;
-  default:
-    //rial.printf("rc %x\n,rc");
-    // ESP.reset();
-    break;
-  }
-
+ 
   // Note: need to time out
   WiFi.begin(ssid.c_str(), pass.c_str()); // Connect to wifi
   // Wait for connection
@@ -74,6 +65,23 @@ int beginWIFI(String sensorName)
     delay(500);
     Serial.print(".");
     delay(500);
+  }
+  setWireBegin(SSD_ADDR);
+  Wire.beginTransmission(SSD_ADDR);
+  bool SSD_CONFIG = Wire.endTransmission();
+  if (!SSD_CONFIG)
+  {
+    if (!display.begin(SSD1306_SWITCHCAPVCC, SSD_ADDR)) // Address 0x3D for 128x64
+      Serial.println(F("SSD1306 allocation failed"));
+
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(0, 0);
+    display.println("server PIO");
+    display.println(WiFi.localIP());
+    display.println(sensorName);
+    display.display();
   }
   Serial.println("");
   Serial.print("Connected to ");
@@ -158,4 +166,29 @@ int readCiphertext(char *ssid_psw)
   file.close();
   strcpy(ssid_psw, ssid_psw_aes.c_str()); // return ssid-pass  as *char
   return 0;
+}
+void upDateDB(String sensorName)
+{
+  WiFiClient client_sql;
+  String apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
+  HTTPClient http;
+  int httpResponseCode;
+  char Buf[80];
+  String payload;
+
+  WiFi.macAddress().toCharArray(Buf, sizeof(Buf));
+  String serverName = "http://192.168.1.252/saveIP.php";
+  String IP = WiFi.localIP().toString();
+  String httpRequestData = "api_key=" + apiKeyValue + "&board=" + "esp8266" +
+                           "&location=" + sensorLocation + "&IPv4Address=" + IP +
+                           "&macAddress=" + (String)Buf + "&sensor=" + sensorName;
+
+  http.begin(client_sql, serverName.c_str());
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  delay(500);
+  httpResponseCode = http.POST(httpRequestData);
+  payload = http.getString();
+  Serial.printf("http rc %d payload %s \n", httpResponseCode, payload.c_str());
+  http.end();
+  return;
 }
