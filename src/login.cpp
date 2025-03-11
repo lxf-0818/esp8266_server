@@ -35,7 +35,7 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[]);
 void encrypt_stub(char *str, char *str2);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext);
 int readCiphertext(char *cssid_psw_aes);
-int setStaticIP(String sensorName, char *ssid, char *psw);
+//int setStaticIP(String sensorName, char *ssid, char *psw);
 void upDateDB(String sensorName);
 
 int beginWIFI(String sensorName)

@@ -17,15 +17,20 @@
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define DEBUG_SCAN
 
-int myCnt = 0;
 int configSensors(char *sensorName);
 void readSensor(char *cmd, char *str);
 int setWireBegin(int addr);
+int scanOneWire();
+int check_if_exist_I2C();
+void scanPorts();
+int readTemp(char *str);
 
 uint8_t i, j;
-int check_if_exist_I2C();
 uint8_t portArray[] = {16, 5, 4, 0, 2, 14, 12, 13};
-String portMap[] = {"GPIO16", "GPIO5", "GPIO4", "GPIO0", "GPIO2", "GPIO14", "GPIO12", "GPIO13"};
+String portMap[] = {"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"};
+int myCnt = 0;
+
+// String portMap[] = {"GPIO16", "GPIO5", "GPIO4", "GPIO0", "GPIO2", "GPIO14", "GPIO12", "GPIO13"};
 
 // I2C
 Adafruit_BME280 bme;
@@ -33,8 +38,8 @@ Adafruit_BMP280 bmp;
 Adafruit_ADS1115 adc;
 SHT35 sht;
 
-void scanPorts();
-bool BME_CNFG = false, BMP_CNFG = false, SHT_CNFG = false, ADC_CNFG = false, MCP = false;
+bool BME_CNFG = false, BMP_CNFG = false, SHT_CNFG = false,
+     ADC_CNFG = false, DS1_CNFG = false;
 struct I2C
 {
     int I2Caddr;
@@ -62,7 +67,6 @@ int configSensors(char *sensorName)
         sensorArray[sensorsInstalled] = "BMP";
         BMP_CNFG = true;
         sensorsInstalled++;
-
     }
     setWireBegin(SHT_ADDRESS);
     if (sht.begin(SHT_ADDRESS))
@@ -79,6 +83,14 @@ int configSensors(char *sensorName)
         ADC_CNFG = true;
         sensorsInstalled++;
     }
+    int ds1Cnt = scanOneWire();
+    for (int i =0;i<ds1Cnt;i++)
+    {
+        sensorArray[sensorsInstalled++] = "DS1";
+        DS1_CNFG = true;
+        //sensorsInstalled++;
+    }
+
     for (int j = 0; j < sensorsInstalled; j++)
     {
         if (j > 0)
@@ -100,7 +112,7 @@ void readSensor(char *cmd, char *str)
     if (BME_CNFG)
     {
         setWireBegin(BMx_ADDRESS);
-        sprintf(str, "%x,%f,%f,%f,|,", BME280_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
+        sprintf(str, "%x,%f,%f,%f,|,", BMx_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
@@ -136,6 +148,14 @@ void readSensor(char *cmd, char *str)
         sensorsData.concat(str);
         deviceCnt++;
     }
+    if (DS1_CNFG)
+    {
+        int rc = readTemp(str);
+        Serial.printf("rc %d\n",rc);
+        sensorsData.concat(str);
+        deviceCnt++;
+    }
+
     if (!deviceCnt)
         strcpy(str, "0");
 
@@ -165,9 +185,8 @@ void scanPorts()
                 if (check_if_exist_I2C())
                 {
 #ifdef DEBUG_SCAN
-                    Serial.print(portArray[i]);
-                    Serial.print(",");
-                    Serial.println(portArray[j]);
+                    Serial.printf(" SDA %s(%d) SCL %s(%d) \n",
+                                  portMap[i].c_str(), portArray[i], portMap[j].c_str(), portArray[j]);
 #endif
                 }
             }
@@ -189,13 +208,12 @@ int check_if_exist_I2C()
         if (!error)
         {
 #ifdef DEBUG_SCAN
-            Serial.print("I2C device found at address ");
+            Serial.printf("I2C device @  %x", address);
             if (address < 16)
                 Serial.print("0");
 
-            Serial.print(address);
             Serial.print("  0x");
-            Serial.println(address, HEX);
+            Serial.print(address, HEX);
 #endif
             devices[myCnt].I2Caddr = address;
             devices[myCnt].sca = portArray[i];
