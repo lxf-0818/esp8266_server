@@ -1,26 +1,68 @@
+/**
+ * @file login.cpp
+ * @brief This file contains the implementation of WiFi initialization, AES encryption/decryption,
+ *        and database update functionalities for an ESP8266-based server project.
+ *
+ * @details
+ * - The code initializes WiFi credentials stored in an AES-encrypted file using LittleFS.
+ * - It handles AES encryption and decryption for secure storage and transmission of sensitive data.
+ * - It updates a remote database with the device's IP address and MAC address.
+ * - It also configures an OLED display to show connection details.
+ *
+ * @libraries
+ * - Arduino.h: Core Arduino functions.
+ * - FS.h: File system support.
+ * - time.h: Time-related functions.
+ * - string.h: String manipulation functions.
+ * - ESP8266WiFi.h: WiFi functionality for ESP8266.
+ * - AESLib.h: AES encryption library.
+ * - LittleFS.h: LittleFS file system support.
+ * - ESP8266HTTPClient.h: HTTP client for ESP8266.
+ * - Adafruit_SSD1306.h: OLED display library.
+ *
+ * @defines
+ * - SCREEN_WIDTH: Width of the OLED display in pixels.
+ * - SCREEN_HEIGHT: Height of the OLED display in pixels.
+ * - SSD_ADDR: I2C address of the OLED display.
+ * - PORT: Port number for the server.
+ * - INPUT_BUFFER_LIMIT: Maximum size of input buffer for encryption/decryption.
+ *
+ * @functions
+ * - int beginWIFI(String sensorName): Initializes WiFi connection using AES-decrypted credentials.
+ * - void aes_init(): Initializes AES encryption settings.
+ * - uint16_t encrypt_to_ciphertext(char *msg, byte iv[]): Encrypts a message using AES and returns the ciphertext length.
+ * - void encrypt_stub(char *str, char *aes_encrypt): Encrypts a string and stores the result in a buffer.
+ * - void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext): Decrypts a ciphertext into cleartext.
+ * - int readEncyptWifiCredentials(char *cssid_psw_aes): Decrypts WiFi credentials stored in a file.
+ * - void upDateDB(String sensorName): Updates a remote database with device information.
+ *
+ * @notes
+ * - The WiFi credentials are stored in an AES-encrypted file named "ssid_pass_aes.txt" on the LittleFS file system.
+ * - The OLED display is used to show the server name, IP address, and sensor name after successful WiFi connection.
+ * - The database update function sends a POST request to a remote server with device details.
+ *
+ * @author Leon Freimour
+ * @date 2025-3-28
+ *
+ * @dependencies
+ */
 #include <Arduino.h>
 #include <FS.h>
 #include <time.h>
 #include <string.h>
 #include <ESP8266WiFi.h>
 #include <AESLib.h>
-#include <ESP8266mDNS.h>
 #include <LittleFS.h>
 #include <ESP8266HTTPClient.h>
-
 #include <Adafruit_SSD1306.h>
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define SSD_ADDR 0x3c
-
-
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
 AESLib aesLib;
-// extern const char *ipDelete = "http://192.168.1.252/deleteIP.php";
-
 // AES Encryption Key (same as in node-js example)
 byte aes_key[] = {0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C};
 byte aes_iv[N_BLOCK] = {0x05, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -34,20 +76,50 @@ int beginWIFI(String sensorName);
 uint16_t encrypt_to_ciphertext(char *msg, byte iv[]);
 void encrypt_stub(char *str, char *str2);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext);
-int readCiphertext(char *cssid_psw_aes);
-//int setStaticIP(String sensorName, char *ssid, char *psw);
+int readEncyptWifiCredentials(char *cssid_psw_aes);
 void upDateDB(String sensorName);
 
+/**
+ * @brief Initializes the Wi-Fi connection and sets up the display and database.
+ *
+ * Function "beginWiFi()" retrieves Wi-Fi credentials stored in an AES-encrypted file on the chip,
+ * decrypts them, and attempts to connect to the specified Wi-Fi network. If the connection
+ * is successful, it initializes the SSD1306 display to show the server information and updates
+ * the database with the provided sensor name.
+ *
+ * @param sensorName A string representing the name of the sensor to be displayed and updated in the database.
+ * @return int Returns 0 on success, or 1 if the Wi-Fi connection fails within the timeout period.
+ *
+ * @note The Wi-Fi credentials are stored in a text file on the chip using LittleFS and are AES-encrypted.
+ *       The function will restart the ESP device if decryption of Wi-Fi credentials fails.
+ *
+ * @details
+ * - The function uses a timeout of 5 seconds to attempt a Wi-Fi connection.
+ * - If the Wi-Fi connection is successful, the SSD1306 display is initialized to show:
+ *   - "server PIO"
+ *   - The local IP address of the device
+ *   - The provided sensor name
+ * - The function also updates the database with the sensor name.
+ * - If the SSD1306 display initialization fails, an error message is printed to the serial monitor.
+ *
+ * @dependencies
+ * - Requires the AES encryption/decryption functions (`aes_init`, `readEncyptWifiCredentials`, `decrypt_to_cleartext`).
+ * - Requires the Wi-Fi library for ESP8266 (`WiFi`).
+ * - Requires the SSD1306 display library (`Adafruit_SSD1306`).
+ * - Requires the Wire library for I2C communication.
+ */
 int beginWIFI(String sensorName)
 {
   String ssid, pass, temp;
   char cssid_psw_aes[580];
   int index;
+  unsigned long startAttemptTime = millis();
+  const unsigned long wifiTimeout = 5000; // 5 seconds timeout
 
-  // the WiFi credentials are aes encrypted and stored as text file on chip using LittelFS
   aes_init();
-  if (readCiphertext(cssid_psw_aes))
+  if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
+
   memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), enc_iv_to, cleartext);
 
@@ -55,17 +127,22 @@ int beginWIFI(String sensorName)
   index = temp.indexOf(":");
   ssid = temp.substring(0, index);
   pass = temp.substring(index + 1);
- 
+
   // Note: need to time out
   WiFi.begin(ssid.c_str(), pass.c_str()); // Connect to wifi
-  // Wait for connection
+
   Serial.println("Connecting to Wifi");
-  while (WiFi.status() != WL_CONNECTED)
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < wifiTimeout)
   {
     delay(500);
-    Serial.print(".");
-    delay(500);
   }
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println("Failed to connect to Wi-Fi within timeout.");
+    return 1; // Return an error code
+  }
+
   setWireBegin(SSD_ADDR);
   Wire.beginTransmission(SSD_ADDR);
   bool SSD_CONFIG = Wire.endTransmission();
@@ -73,15 +150,17 @@ int beginWIFI(String sensorName)
   {
     if (!display.begin(SSD1306_SWITCHCAPVCC, SSD_ADDR)) // Address 0x3D for 128x64
       Serial.println(F("SSD1306 allocation failed"));
-
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    display.setCursor(0, 0);
-    display.println("server PIO");
-    display.println(WiFi.localIP());
-    display.println(sensorName);
-    display.display();
+    else
+    {
+      display.clearDisplay();
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.setCursor(0, 0);
+      display.println("server PIO");
+      display.println(WiFi.localIP());
+      display.println(sensorName);
+      display.display();
+    }
   }
   Serial.println("");
   Serial.print("Connected to ");
@@ -95,6 +174,16 @@ int beginWIFI(String sensorName)
 
   return 0;
 }
+/**
+ * @brief Initializes the AES encryption library with the desired settings.
+ *
+ * This function sets up the AES library by configuring the padding mode.
+ * The initialization vector (IV) generation is currently commented out.
+ *
+ * Note:
+ * - Ensure that the AES library is properly included and initialized before calling this function.
+ * - The padding mode is set using the `set_paddingmode` method with a specific mode.
+ */
 void aes_init()
 {
   // aesLib.gen_iv(aes_iv);
@@ -118,7 +207,7 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[])
   uint16_t enc_length = aesLib.encrypt64((byte *)msg, msgLen, encrypted_bytes, aes_key, sizeof(aes_key), iv);
   sprintf(ciphertext, "%s", encrypted_bytes);
 
-  // test aes en/de crypt to ensure we good to go
+  // test aes en/de crypt to ensure we are good to go
   memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
   decrypt_to_cleartext(ciphertext, strlen(ciphertext), enc_iv_to, cleartext);
   // Serial.printf("decrypt str %s\n", cleartext);
@@ -137,7 +226,25 @@ void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext
   uint16_t decLen = aesLib.decrypt64(msg, msgLen, (byte *)cleartext, aes_key, sizeof(aes_key), iv);
   cleartext[decLen] = '\0'; // added lxf
 }
-int readCiphertext(char *ssid_psw)
+/**
+ * @brief Reads encrypted Wi-Fi credentials from a file in the LittleFS file system.
+ *
+ * This function attempts to mount the LittleFS file system and read the contents
+ * of the file "/ssid_pass_aes.txt". The file is expected to contain encrypted Wi-Fi
+ * credentials. The credentials are returned as a null-terminated C-style string
+ * through the provided `ssid_psw` buffer.
+ *
+ * @param ssid_psw A pointer to a character array where the decrypted Wi-Fi credentials
+ *                 will be stored. The array must be large enough to hold the credentials.
+ *
+ * @return int Returns 0 on success, or an error code on failure:
+ *             - 1: Failed to mount the LittleFS file system.
+ *             - 2: Failed to open the "/ssid_pass_aes.txt" file for reading.
+ *
+ * @note Ensure that the LittleFS library is properly initialized in your project. // wtf?
+ *       The caller is responsible for providing a sufficiently large buffer for `ssid_psw`.
+ */
+int readEncyptWifiCredentials(char *ssid_psw)
 {
   String ssid_psw_aes;
   // Serial.println(decLen);
@@ -148,10 +255,6 @@ int readCiphertext(char *ssid_psw)
     Serial.println("Error mounting the file system");
     return 1;
   }
-  // else
-  // {
-  //    Serial.println("File system mounted with success");
-  //  }
 
   File file = LittleFS.open("/ssid_pass_aes.txt", "r");
   if (!file)
@@ -167,6 +270,26 @@ int readCiphertext(char *ssid_psw)
   strcpy(ssid_psw, ssid_psw_aes.c_str()); // return ssid-pass  as *char
   return 0;
 }
+/**
+ * @brief Sends an HTTP POST request to update the database with sensor and device information.
+ *
+ * This function collects device information such as MAC address, IP address, and sensor name,
+ * and sends it to mySQL via HTTP POST request. The server is expected
+ * to handle the data and update the database accordingly.
+ *
+ * @param sensorName The name of the sensor to be included in the HTTP request.
+ *
+ * @note The function uses the ESP8266 WiFi library and HTTPClient for network communication.
+ *       Ensure that the device is connected to WiFi before calling this function.
+ *
+ * @details
+ * - The server endpoint is hardcoded as "http://192.168.1.252/saveIP.php".
+ * - The API key, board type, and location are also hardcoded within the function.
+ * - The function logs the HTTP response code and payload to the serial monitor.
+ * - A delay of 500 milliseconds is introduced before sending the HTTP POST request.
+ *
+ * @return void
+ */
 void upDateDB(String sensorName)
 {
   WiFiClient client_sql;
@@ -179,9 +302,12 @@ void upDateDB(String sensorName)
   WiFi.macAddress().toCharArray(Buf, sizeof(Buf));
   String serverName = "http://192.168.1.252/saveIP.php";
   String IP = WiFi.localIP().toString();
-  String httpRequestData = "api_key=" + apiKeyValue + "&board=" + "esp8266" +
-                           "&location=" + sensorLocation + "&IPv4Address=" + IP +
-                           "&macAddress=" + (String)Buf + "&sensor=" + sensorName;
+  String httpRequestData = "api_key=" + apiKeyValue;
+  httpRequestData += "&board=esp8266";
+  httpRequestData += "&location=" + sensorLocation;
+  httpRequestData += "&IPv4Address=" + IP;
+  httpRequestData += "&macAddress=" + (String)Buf;
+  httpRequestData += "&sensor=" + sensorName;
 
   http.begin(client_sql, serverName.c_str());
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");

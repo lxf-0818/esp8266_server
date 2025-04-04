@@ -1,3 +1,39 @@
+/**
+ * @file oneWire.cpp
+ * @brief This file contains functions to interface with OneWire devices, such as DS18B20 temperature sensors, 
+ *        using the OneWire library on an ESP8266 microcontroller.
+ * 
+ * @details
+ * - The `scanOneWire` function scans the OneWire bus for connected devices and returns the count of detected devices.
+ * - The `readTemp` function reads temperature data from DS18B20 sensors on the OneWire bus and formats the results into a string.
+ * - Debugging information is printed to the Serial monitor when the `DEBUG` macro is defined.
+ */
+
+ /**
+  * @brief Scans the OneWire bus for connected devices.
+  * 
+  * @return int The number of devices detected on the OneWire bus.
+  * 
+  * @note If no devices are found, the function will return 0.
+  * @note Debugging information is printed to the Serial monitor if the `DEBUG` macro is defined.
+  */
+
+ /**
+  * @brief Reads temperature data from DS18B20 sensors on the OneWire bus.
+  * 
+  * @param[out] str A character array to store the formatted temperature data or error messages.
+  *                 The format for valid data is "<device_address>,<temperature>|,<device_address>,<temperature>|,...".
+  * 
+  * @return int Status code:
+  *         - 0: Success, temperature data is stored in `str`.
+  *         - 1: CRC check for ROM address failed.
+  *         - 2: CRC check for scratchpad data failed.
+  *         - 3: No devices found or devices dropped, check wiring.
+  * 
+  * @note The function assumes a maximum of 10 devices on the OneWire bus.
+  * @note Debugging information is printed to the Serial monitor if the `DEBUG` macro is defined.
+  * @note Temperatures are converted to Fahrenheit.
+  */
 #include <Arduino.h>
 #include <OneWire.h>
 
@@ -13,6 +49,7 @@ int scanOneWire()
 {
   int deviceCount = 0;
   byte addr[8];
+  Serial.printf("start DS18B20 \n");
 
   while (1)
   {
