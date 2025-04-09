@@ -12,8 +12,7 @@
  * @libraries
  * - Arduino.h: Core Arduino functions.
  * - FS.h: File system support.
- * - time.h: Time-related functions.
- * - string.h: String manipulation functions.
+ * - time.h: Time-related functions.*
  * - ESP8266WiFi.h: WiFi functionality for ESP8266.
  * - AESLib.h: AES encryption library.
  * - LittleFS.h: LittleFS file system support.
@@ -49,7 +48,6 @@
 #include <Arduino.h>
 #include <FS.h>
 #include <time.h>
-#include <string.h>
 #include <ESP8266WiFi.h>
 #include <AESLib.h>
 #include <LittleFS.h>
@@ -114,7 +112,7 @@ int beginWIFI(String sensorName)
   char cssid_psw_aes[580];
   int index;
   unsigned long startAttemptTime = millis();
-  const unsigned long wifiTimeout = 5000; // 5 seconds timeout
+  const unsigned long wifiTimeout = 10000; // 10 seconds timeout
 
   aes_init();
   if (readEncyptWifiCredentials(cssid_psw_aes))

@@ -49,7 +49,7 @@ int scanOneWire()
 {
   int deviceCount = 0;
   byte addr[8];
-  Serial.printf("start DS18B20 \n");
+ // Serial.printf("start DS18B20 \n");
 
   while (1)
   {

@@ -51,7 +51,7 @@
 #define NO_SOCKET_AES
 #define SEALEVELPRESSURE_HPA (1012.8)
 
-// #define DEBUG_SCAN
+ #define DEBUG_SCAN
 
 int configSensors(char *sensorName);
 void getSensorData(char *cmd, char *str);
@@ -112,7 +112,12 @@ int configSensors(char *sensorName)
 {
     int sensorsInstalled = 0;
     String s, sensorArray[DEVICES];
-
+    int ds1Cnt = scanOneWire();
+    for (int i = 0; i < ds1Cnt; i++)
+    {
+        sensorArray[sensorsInstalled++] = "DS1";
+        DS1_CNFG = true;
+    }
     scanPorts();
     setWireBegin(BMPX_ADDRESS);
     if (bmp3xx.begin_I2C(BMPX_ADDRESS))
@@ -150,13 +155,7 @@ int configSensors(char *sensorName)
         ADC_CNFG = true;
         sensorsInstalled++;
     }
-    int ds1Cnt = scanOneWire();
-    for (int i = 0; i < ds1Cnt; i++)
-    {
-        sensorArray[sensorsInstalled++] = "DS1";
-        DS1_CNFG = true;
-    }
-
+    
     for (int j = 0; j < sensorsInstalled; j++)
     {
         if (j > 0)
@@ -167,6 +166,34 @@ int configSensors(char *sensorName)
     return sensorsInstalled;
 }
 
+/**
+ * @brief Collects sensor data from various configured sensors, formats the data,
+ *        calculates a CRC32 checksum, and optionally encrypts the result.
+ * 
+ * @param cmd Unused parameter, reserved for future use.
+ * @param str Pointer to a character buffer where the resulting data or error message will be stored.
+ * 
+ * The function performs the following steps:
+ * 1. Checks the configuration flags for each sensor type (e.g., BMX, BME, BMP, SHT, ADC, DS1).
+ * 2. Reads data from the corresponding sensors if they are configured and available.
+ * 3. Formats the sensor data into a specific string format and concatenates it.
+ * 4. Calculates a CRC32 checksum for the concatenated sensor data.
+ * 5. Optionally encrypts the resulting string if encryption is enabled.
+ * 6. Stores the final result in the provided `str` buffer.
+ * 
+ * Notes:
+ * - If no sensors are configured or available, the function sets `str` to "0".
+ * - The function removes the trailing ",|," from the concatenated sensor data before processing.
+ * - The encryption step is controlled by the `NO_SOCKET_AES` macro.
+ * 
+ * Example output format (unencrypted): `<CRC32>:<sensor_data>`
+ * Example sensor data format: `<address>,<value1>,<value2>,|,`
+ * 
+ * Dependencies:
+ * - The function relies on external sensor libraries and configuration macros.
+ * - The `calcCRC32` function is used to compute the checksum.
+ * - The `encrypt_stub` function is used for encryption if enabled.
+ */
 void getSensorData(char *cmd, char *str)
 {
     char tmp[512];
@@ -226,7 +253,6 @@ void getSensorData(char *cmd, char *str)
     if (DS1_CNFG)
     {
         int rc = readTemp(str);
-        Serial.printf("rc %d\n", rc);
         sensorsData.concat(str);
         deviceCnt++;
     }
@@ -248,6 +274,25 @@ void getSensorData(char *cmd, char *str)
 #endif
 }
 
+/**
+ * @brief Scans all possible combinations of SDA and SCL pins from the portArray
+ *        to detect connected I2C devices.
+ * 
+ * This function iterates through all combinations of pins in the portArray,
+ * excluding cases where the same pin is used for both SDA and SCL. For each
+ * combination, it initializes the I2C bus using Wire.begin() and checks if
+ * an I2C device exists on the bus using the check_if_exist_I2C() function.
+ * 
+ * If DEBUG_SCAN is defined, the function logs the detected SDA and SCL pin
+ * combinations along with their corresponding names from the portMap array
+ * to the Serial output.
+ * 
+ * @note The portArray and portMap arrays, as well as the check_if_exist_I2C()
+ *       function, must be defined elsewhere in the program.
+ * 
+ * @warning Ensure that the size of portArray is correctly calculated, as 
+ *          sizeof(portArray) may not work as expected if portArray is a pointer.
+ */
 void scanPorts()
 {
     for (i = 0; i < sizeof(portArray); i++)
@@ -269,6 +314,29 @@ void scanPorts()
     }
 }
 
+/**
+ * @brief Scans the I2C bus for connected devices and returns the count of detected devices.
+ * 
+ * This function iterates through all possible I2C addresses (1 to 126) and checks if a device
+ * acknowledges communication at each address. If a device is found, its address and associated
+ * port information are stored in the `devices` array. The function also handles errors during
+ * communication and resets the ESP device if an unknown error occurs.
+ * 
+ * @note The function uses the Wire library for I2C communication. Ensure that the Wire library
+ *       is properly initialized before calling this function.
+ * 
+ * @return int The number of I2C devices detected on the bus.
+ * 
+ * @warning If an unknown error occurs during communication, the ESP device will reset.
+ * 
+ * @details
+ * - If the `DEBUG_SCAN` macro is defined, the function will print the addresses of detected
+ *   I2C devices to the Serial monitor.
+ * - The `devices` array and `myCnt` variable are used to store information about detected
+ *   devices. Ensure these are properly defined and initialized in the global scope.
+ * - The `portArray` array and `i`, `j` indices are used to associate I2C addresses with
+ *   specific ports. Ensure these are defined and initialized appropriately.
+ */
 int check_if_exist_I2C()
 {
     byte error, address;
