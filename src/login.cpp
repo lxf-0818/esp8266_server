@@ -82,7 +82,7 @@ void upDateDB(String sensorName);
  *
  * Function "beginWiFi()" retrieves Wi-Fi credentials stored in an AES-encrypted file on the chip,
  * decrypts them, and attempts to connect to the specified Wi-Fi network. If the connection
- * is successful, it initializes the SSD1306 display to show the server information and updates
+ * is successful, it initializes the SSD1306 display if connected to show the server information and updates
  * the database with the provided sensor name.
  *
  * @param sensorName A string representing the name of the sensor to be displayed and updated in the database.
@@ -112,7 +112,7 @@ int beginWIFI(String sensorName)
   char cssid_psw_aes[580];
   int index;
   unsigned long startAttemptTime = millis();
-  const unsigned long wifiTimeout = 10000; // 10 seconds timeout
+  const unsigned long wifiTimeout = 20000; // 20 seconds timeout
 
   aes_init();
   if (readEncyptWifiCredentials(cssid_psw_aes))
@@ -192,8 +192,9 @@ void encrypt_stub(char *str, char *aes_encrypt)
 {
 
   memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
-  encrypt_to_ciphertext(str, enc_iv_to);
-  strcpy(aes_encrypt, ciphertext);
+  int length = encrypt_to_ciphertext(str, enc_iv_to);
+
+  strncpy(aes_encrypt, ciphertext, length + 1);
   Serial.printf("clear text      %s\n", str);
   Serial.printf("encrypt string: %s\n", ciphertext);
 }
@@ -293,26 +294,25 @@ void upDateDB(String sensorName)
   WiFiClient client_sql;
   String apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
   HTTPClient http;
-  int httpResponseCode;
-  char Buf[80];
+  char macAddr[80];
   String payload;
 
-  WiFi.macAddress().toCharArray(Buf, sizeof(Buf));
+  WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
   String serverName = "http://192.168.1.252/saveIP.php";
   String IP = WiFi.localIP().toString();
   String httpRequestData = "api_key=" + apiKeyValue;
   httpRequestData += "&board=esp8266";
   httpRequestData += "&location=" + sensorLocation;
   httpRequestData += "&IPv4Address=" + IP;
-  httpRequestData += "&macAddress=" + (String)Buf;
+  httpRequestData += "&macAddress=" + (String)macAddr;
   httpRequestData += "&sensor=" + sensorName;
 
   http.begin(client_sql, serverName.c_str());
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  delay(500);
-  httpResponseCode = http.POST(httpRequestData);
+  // delay(500);
+  int httpResponseCode = http.POST(httpRequestData);
   payload = http.getString();
-  Serial.printf("http rc %d payload %s \n", httpResponseCode, payload.c_str());
+  Serial.printf("http rc %d payload %s \n\t %s", httpResponseCode, payload.c_str(), httpRequestData.c_str());
   http.end();
   return;
 }

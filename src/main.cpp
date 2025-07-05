@@ -27,7 +27,6 @@
  * - getSensorData(char *cmdFromClient, char *str): Retrieves sensor data based on client commands.
  * - beginWIFI(String sensorName): Initializes WiFi connection with the given sensor name.
  * - performSystemTask(char *cmdFromClient): Executes system tasks based on client commands.
- * - scanPorts(): Scans available ports (not implemented in the provided code).
  *
  * @variables
  * - server: WiFiServer instance for handling client connections.
@@ -88,6 +87,32 @@ void setup()
   pinMode(D6, INPUT_PULLUP);
   attachInterrupt(D6, isr, FALLING);
 }
+/**
+ * @brief Main loop function to handle client-server communication.
+ * 
+ * This function continuously checks for incoming client connections, processes
+ * client requests, and sends appropriate responses. It includes timeout handling
+ * for client inactivity and ensures data integrity by discarding excess data.
+ * 
+ * Workflow:
+ * 1. Accepts a client connection from the server.
+ * 2. Verifies if the client is connected and logs the client's IP address.
+ * 3. Waits for data from the client with a timeout of 5 seconds.
+ * 4. Reads and processes the client's command, converting it to uppercase.
+ * 5. If the command contains "ALL", retrieves sensor data and prepares a response.
+ * 6. Otherwise, appends the server's IP address to the command and sends it back.
+ * 7. Executes a system task based on the client's command.
+ * 8. Sends the response back to the client and closes the connection.
+ * 
+ * @note The function uses a buffer `cmdFromClient` to store the client's command
+ *       and ensures it does not overflow by discarding excess data.
+ * 
+ * @warning Ensure that the `getSensorData` and `performSystemTask` functions are
+ *          implemented correctly to handle the commands and avoid unexpected behavior.
+ * 
+ * @param None
+ * @return None
+ */
 void loop()
 {
   unsigned j = 0;

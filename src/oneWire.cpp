@@ -1,23 +1,3 @@
-/**
- * @file oneWire.cpp
- * @brief This file contains functions to interface with OneWire devices, such as DS18B20 temperature sensors, 
- *        using the OneWire library on an ESP8266 microcontroller.
- * 
- * @details
- * - The `scanOneWire` function scans the OneWire bus for connected devices and returns the count of detected devices.
- * - The `readTemp` function reads temperature data from DS18B20 sensors on the OneWire bus and formats the results into a string.
- * - Debugging information is printed to the Serial monitor when the `DEBUG` macro is defined.
- */
-
- /**
-  * @brief Scans the OneWire bus for connected devices.
-  * 
-  * @return int The number of devices detected on the OneWire bus.
-  * 
-  * @note If no devices are found, the function will return 0.
-  * @note Debugging information is printed to the Serial monitor if the `DEBUG` macro is defined.
-  */
-
  /**
   * @brief Reads temperature data from DS18B20 sensors on the OneWire bus.
   * 
