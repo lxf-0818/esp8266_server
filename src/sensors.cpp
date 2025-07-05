@@ -12,7 +12,7 @@
  *   sensors.
  * - The `getSensorData` function retrieves data from the configured sensors and formats
  *   it into a string with CRC32 checksum.
- * - The `scanPorts` function scans all possible I2C port combinations to detect connected
+ * - The `scanI2Cports` function scans all possible I2C port combinations to detect connected
  *   devices.
  * - The `check_if_exist_I2C` function checks for the presence of I2C devices on the bus.
  * - The `setWireBegin` function sets the I2C pins for a specific device address.
@@ -42,24 +42,27 @@
 #include <Adafruit_Sensor.h>
 #include <AESLib.h>
 #include <CRC.h>
+#include <ArduinoJson.h>
+
+#define DEBUG_SCAN
+#define NO_SOCKET_AES
+
 #define SHT_ADDRESS 0x44
 #define BMx_ADDRESS 0x76
 #define BMPX_ADDRESS 0x77
 #define ADC_ADDRESS 0x48
 #define MCP_ADDRESS 0x18
 #define DEVICES 5
-#define NO_SOCKET_AES
 #define SEALEVELPRESSURE_HPA (1012.8)
-
- #define DEBUG_SCAN
 
 int configSensors(char *sensorName);
 void getSensorData(char *cmd, char *str);
 int setWireBegin(int addr);
 int scanOneWire();
 int check_if_exist_I2C();
-void scanPorts();
+void scanI2Cports();
 int readTemp(char *str);
+void encrypt_stub(char *str, char *str2);
 
 uint8_t i, j;
 uint8_t portArray[] = {16, 5, 4, 0, 2, 14, 12, 13};
@@ -118,7 +121,7 @@ int configSensors(char *sensorName)
         sensorArray[sensorsInstalled++] = "DS1";
         DS1_CNFG = true;
     }
-    scanPorts();
+    scanI2Cports();
     setWireBegin(BMPX_ADDRESS);
     if (bmp3xx.begin_I2C(BMPX_ADDRESS))
     {
@@ -126,7 +129,6 @@ int configSensors(char *sensorName)
         BMX_CNFG = true;
         sensorsInstalled++;
     }
-
     setWireBegin(BMx_ADDRESS);
     if (bme.begin(BMx_ADDRESS))
     {
@@ -155,7 +157,7 @@ int configSensors(char *sensorName)
         ADC_CNFG = true;
         sensorsInstalled++;
     }
-    
+
     for (int j = 0; j < sensorsInstalled; j++)
     {
         if (j > 0)
@@ -169,10 +171,10 @@ int configSensors(char *sensorName)
 /**
  * @brief Collects sensor data from various configured sensors, formats the data,
  *        calculates a CRC32 checksum, and optionally encrypts the result.
- * 
+ *
  * @param cmd Unused parameter, reserved for future use.
  * @param str Pointer to a character buffer where the resulting data or error message will be stored.
- * 
+ *
  * The function performs the following steps:
  * 1. Checks the configuration flags for each sensor type (e.g., BMX, BME, BMP, SHT, ADC, DS1).
  * 2. Reads data from the corresponding sensors if they are configured and available.
@@ -180,15 +182,15 @@ int configSensors(char *sensorName)
  * 4. Calculates a CRC32 checksum for the concatenated sensor data.
  * 5. Optionally encrypts the resulting string if encryption is enabled.
  * 6. Stores the final result in the provided `str` buffer.
- * 
+ *
  * Notes:
  * - If no sensors are configured or available, the function sets `str` to "0".
  * - The function removes the trailing ",|," from the concatenated sensor data before processing.
  * - The encryption step is controlled by the `NO_SOCKET_AES` macro.
- * 
+ *
  * Example output format (unencrypted): `<CRC32>:<sensor_data>`
  * Example sensor data format: `<address>,<value1>,<value2>,|,`
- * 
+ *
  * Dependencies:
  * - The function relies on external sensor libraries and configuration macros.
  * - The `calcCRC32` function is used to compute the checksum.
@@ -196,11 +198,11 @@ int configSensors(char *sensorName)
  */
 void getSensorData(char *cmd, char *str)
 {
+    (void)cmd; // stop warning error
     char tmp[512];
+    char encrypt_string[512] = {'\0'}; // Declare encrypt_string
     String sensorsData;
     int deviceCnt = 0;
-
-    (void)cmd;
 
     if (BMX_CNFG)
     {
@@ -217,6 +219,7 @@ void getSensorData(char *cmd, char *str)
         sprintf(str, "%x,%f,%f,%f,|,", BMx_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
+        //  Serial.printf("bme config %s\n",str);
         deviceCnt++;
     }
     if (BMP_CNFG)
@@ -242,58 +245,63 @@ void getSensorData(char *cmd, char *str)
     }
     if (ADC_CNFG)
     {
-        setWireBegin(0x48);
-        float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0));
-        float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1));
-        sprintf(str, "%x,%f,%f,|,", ADC_ADDRESS, volts0, volts1);
-        Serial.printf("A0/A1 is connected to 3V on ESP\n");
+        setWireBegin(ADC_ADDRESS);
+        float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
+        float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
+        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1,5.63);
+        //Serial.printf("A1 is connected to 3V on ESP\n");
         sensorsData.concat(str);
         deviceCnt++;
     }
     if (DS1_CNFG)
     {
-        int rc = readTemp(str);
+        readTemp(str);
         sensorsData.concat(str);
         deviceCnt++;
     }
 
     if (!deviceCnt)
-        strcpy(str, "0");
+    {
+        strcpy(str, "no sensors found");
+        return;
+    }
 
     sensorsData = sensorsData.substring(0, sensorsData.length() - 3); // remove the last ",|,"
-    strcpy(tmp, sensorsData.c_str());
-    uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
-    uint32_t t = calcCRC32(data, strlen(tmp));
-    bzero(tmp, 512);
-    sprintf(tmp, "%x:%s", t, sensorsData.c_str());
 #ifndef NO_SOCKET_AES
-    encrypt_stub(str, encrypt_string);
-    Serial.printf("in server aes %s", encrypt_string);
+    encrypt_stub((char *)sensorsData.c_str(), tmp);
 #else
-    strcpy(str, tmp);
+    strcpy(tmp, sensorsData.c_str());
+#endif
+    uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
+    uint32_t calcCRC = calcCRC32(data, strlen(tmp));
+#ifndef NO_SOCKET_AES
+    sprintf(str, "%x:%s", calcCRC, tmp);
+#else
+    bzero(str, 512);
+    sprintf(str, "%x:%s", calcCRC,sensorsData.c_str());
 #endif
 }
 
 /**
  * @brief Scans all possible combinations of SDA and SCL pins from the portArray
  *        to detect connected I2C devices.
- * 
+ *
  * This function iterates through all combinations of pins in the portArray,
  * excluding cases where the same pin is used for both SDA and SCL. For each
  * combination, it initializes the I2C bus using Wire.begin() and checks if
  * an I2C device exists on the bus using the check_if_exist_I2C() function.
- * 
+ *
  * If DEBUG_SCAN is defined, the function logs the detected SDA and SCL pin
  * combinations along with their corresponding names from the portMap array
  * to the Serial output.
- * 
+ *
  * @note The portArray and portMap arrays, as well as the check_if_exist_I2C()
  *       function, must be defined elsewhere in the program.
- * 
- * @warning Ensure that the size of portArray is correctly calculated, as 
+ *
+ * @warning Ensure that the size of portArray is correctly calculated, as
  *          sizeof(portArray) may not work as expected if portArray is a pointer.
  */
-void scanPorts()
+void scanI2Cports()
 {
     for (i = 0; i < sizeof(portArray); i++)
     {
@@ -316,19 +324,19 @@ void scanPorts()
 
 /**
  * @brief Scans the I2C bus for connected devices and returns the count of detected devices.
- * 
+ *
  * This function iterates through all possible I2C addresses (1 to 126) and checks if a device
  * acknowledges communication at each address. If a device is found, its address and associated
  * port information are stored in the `devices` array. The function also handles errors during
  * communication and resets the ESP device if an unknown error occurs.
- * 
+ *
  * @note The function uses the Wire library for I2C communication. Ensure that the Wire library
  *       is properly initialized before calling this function.
- * 
+ *
  * @return int The number of I2C devices detected on the bus.
- * 
+ *
  * @warning If an unknown error occurs during communication, the ESP device will reset.
- * 
+ *
  * @details
  * - If the `DEBUG_SCAN` macro is defined, the function will print the addresses of detected
  *   I2C devices to the Serial monitor.
