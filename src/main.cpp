@@ -1,6 +1,5 @@
 /**
  * @file main.cpp
- * 
  * @brief ESP8266 server implementation for handling client connections and sensor data.
  *
  * This program sets up a WiFi server on the ESP8266 microcontroller to listen for client connections
