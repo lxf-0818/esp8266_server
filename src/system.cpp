@@ -24,11 +24,7 @@ void performSystemTask(char *cmdFromClient);
 void performSystemTask(char *cmdFromClient)
 {
     if (strstr(cmdFromClient, "BLK"))
-    {
-        pinMode(D6, OUTPUT);
         digitalWrite(D6, 0);
-      
-    }
     else if (strstr(cmdFromClient, "RST"))
         ESP.reset();
 }

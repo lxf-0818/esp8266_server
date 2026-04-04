@@ -45,7 +45,7 @@
 #include <ArduinoJson.h>
 
 #define DEBUG_SCAN
-#define NO_SOCKET_AES
+//#define NO_SOCKET_AES
 
 #define SHT_ADDRESS 0x44
 #define BMx_ADDRESS 0x76
@@ -115,13 +115,23 @@ int configSensors(char *sensorName)
 {
     int sensorsInstalled = 0;
     String s, sensorArray[DEVICES];
+
+    
     int ds1Cnt = scanOneWire();
     for (int i = 0; i < ds1Cnt; i++)
     {
         sensorArray[sensorsInstalled++] = "DS1";
         DS1_CNFG = true;
     }
+
     scanI2Cports();
+    // Wire.begin(5, 4);
+    // setWireBegin(0x57);
+    //   if (!pox.begin(PULSEOXIMETER_DEBUGGINGMODE_PULSEDETECT)) {
+    //     Serial.println("ERROR: Failed to initialize pulse oximeter");
+    //     for(;;);
+    // }
+
     setWireBegin(BMPX_ADDRESS);
     if (bmp3xx.begin_I2C(BMPX_ADDRESS))
     {
@@ -245,10 +255,11 @@ void getSensorData(char *cmd, char *str)
     }
     if (ADC_CNFG)
     {
+        float rRatio = 5.63;  // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
         setWireBegin(ADC_ADDRESS);
         float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
-        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1,5.63);
+        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1,rRatio);
         //Serial.printf("A1 is connected to 3V on ESP\n");
         sensorsData.concat(str);
         deviceCnt++;
@@ -318,7 +329,7 @@ void scanI2Cports()
 #endif
                 }
             }
-        }
+       }
     }
 }
 
@@ -353,7 +364,7 @@ int check_if_exist_I2C()
     {
         // The i2c_scanner uses the return value of
         // the Write.endTransmisstion to see if
-        // a device did acknowledge to the address.
+        // a device did acknowledge the address.
         Wire.beginTransmission(address);
         error = Wire.endTransmission();
         if (!error)
