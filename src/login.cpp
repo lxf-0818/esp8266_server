@@ -114,15 +114,17 @@ int beginWIFI(String sensorName)
   unsigned long startAttemptTime = millis();
   const unsigned long wifiTimeout = 20000; // 20 seconds timeout
 
-  aes_init();
   if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
-
+    
+  aes_init();
+  
+   // WARNING: make a copy the below function will corrutped the input byte array 
   memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), enc_iv_to, cleartext);
 
   temp = cleartext;
-  index = temp.indexOf(":");
+  index = temp.indexOf(":");  // get eos token
   ssid = temp.substring(0, index);
   pass = temp.substring(index + 1);
 
@@ -211,7 +213,7 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[])
   decrypt_to_cleartext(ciphertext, strlen(ciphertext), enc_iv_to, cleartext);
   // Serial.printf("decrypt str %s\n", cleartext);
 
-  if (!strcmp(cleartext, msg))
+  if (!strcmp(cleartext, msg))  // need mod == 0 
     Serial.println("match");
   return enc_length;
 }
@@ -273,7 +275,7 @@ int readEncyptWifiCredentials(char *ssid_psw)
  * @brief Sends an HTTP POST request to update the database with sensor and device information.
  *
  * This function collects device information such as MAC address, IP address, and sensor name,
- * and sends it to mySQL via HTTP POST request. The server is expected
+ * and sends it to mySQL via HTTP POST request. The PHP server is expected
  * to handle the data and update the database accordingly.
  *
  * @param sensorName The name of the sensor to be included in the HTTP request.
@@ -285,28 +287,27 @@ int readEncyptWifiCredentials(char *ssid_psw)
  * - The server endpoint is hardcoded as "http://192.168.1.252/saveIP.php".
  * - The API key, board type, and location are also hardcoded within the function.
  * - The function logs the HTTP response code and payload to the serial monitor.
- * - A delay of 500 milliseconds is introduced before sending the HTTP POST request.
  *
  * @return void
  */
 void upDateDB(String sensorName)
 {
   WiFiClient client_sql;
-  String apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
   HTTPClient http;
   char macAddr[80];
-  String payload;
+  String payload, IP, httpRequestData, serverName ,apiKeyValue,sensorLocation;
 
   WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
-  String serverName = "http://192.168.1.252/saveIP.php";
-  String IP = WiFi.localIP().toString();
-  String httpRequestData = "api_key=" + apiKeyValue;
+  IP = WiFi.localIP().toString();
+  apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
+
+  httpRequestData = "api_key=" + apiKeyValue;
   httpRequestData += "&board=esp8266";
   httpRequestData += "&location=" + sensorLocation;
   httpRequestData += "&IPv4Address=" + IP;
   httpRequestData += "&macAddress=" + (String)macAddr;
   httpRequestData += "&sensor=" + sensorName;
-
+  serverName = "http://192.168.1.252/saveIP.php";
   http.begin(client_sql, serverName.c_str());
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   // delay(500);

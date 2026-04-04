@@ -43,30 +43,30 @@
  * @warning
  * - Ensure the server IP and port are correctly configured.
  * - Handle sensitive data securely if encryption is implemented.
+ * sample output:
+ *  setup()
+ *    Connected to NETGEAR37-2
+ *    IP address: 192.168.1.3 
+*     Port 8888
+*     http rc 200 payload 110| 
+*         api_key=tPmAT5Ab3j7F9&board=esp8266&location=HOME&IPv4Address=192.168.1.3&macAddress=C8:C9:A3:10:E2:BF&sensor=BMX192.168.1.8  Client(esp32) Connected to Server
+*   loop()
+*     -> address 0x77 sca 5 scl 4
+*     match
+*     clear text      77,73.652734,974.031616
+*     encrypt string: 2dc8Pdrfuqc+eaWr7OdjkXhcX8QVajxeX6plkCf96bY=
+*     b182b3d0:2dc8Pdrfuqc+eaWr7OdjkXhcX8QVajxeX6plkCf96bY=
  */
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+
 
 int configSensors(char *sensorName);
 void encrypt_stub(char *str, char *str2);
 void getSensorData(char *cmdFromClient, char *str);
 int beginWIFI(String sensorName);
 void performSystemTask(char *cmdFromClient);
-
 void IRAM_ATTR isr();
-
-void IRAM_ATTR isr()
-{
-  pinMode(LED_BUILTIN, OUTPUT);
-  for (int i = 0; i < 2; i++)
-  {
-    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
-    delay(500);                      // Wait for a second
-    digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH47
-    delay(500);
-  }
-}
-
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
 WiFiClient client;
@@ -75,7 +75,6 @@ void setup()
 {
   int cnt = 0;
   Serial.begin(115200);
-  Serial.println("in setup() ");
   cnt = configSensors(sensorName);
   if (cnt > 0)
   {
@@ -84,8 +83,11 @@ void setup()
   }
   else
     Serial.println("\n No Device Found check wiring");
+    
   pinMode(D6, INPUT_PULLUP);
-  attachInterrupt(D6, isr, FALLING);
+  pinMode(LED_BUILTIN, OUTPUT);
+  attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
+  
 }
 /**
  * @brief Main loop function to handle client-server communication.
@@ -142,13 +144,9 @@ void loop()
     // read data from the connected client
     while (client.available())
       if (j < sizeof(cmdFromClient) - 1)
-      {
         cmdFromClient[j++] = toupper(client.read());
-      }
       else
-      {
         client.read(); // Discard excess data
-      }
 
     if (strnstr(cmdFromClient, "ALL", 3))
     {
@@ -169,3 +167,15 @@ void loop()
 
   } // end if client
 } //
+void ICACHE_RAM_ATTR isr()
+{
+  
+  for ( int i = 0; i < 1; i++)
+  {
+    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
+    delay(500);                      // Wait for a second
+    digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH47
+    delay(500);
+  }
+  Serial.println("in isr");
+}
