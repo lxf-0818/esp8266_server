@@ -25,10 +25,14 @@ PlatformIO environment from platformio.ini:
 
 ## Project Structure
 - src/main.cpp: TCP server setup, request parsing, response handling.
+- docs/main.md: Detailed setup/loop runtime flow, socket command handling, and ISR behavior reference.
 - src/sensors.cpp: Sensor discovery, I2C scan, OneWire/DS18B20 support, payload assembly, CRC and optional AES.
+- docs/sensors.md: Detailed sensor config, I2C scan routing, payload serialization, and CRC/AES flow reference.
 - src/login.cpp: Wi-Fi startup, AES decrypt/encrypt helpers, OLED startup display, MySQL/PHP registration POST.
+- docs/login.md: Detailed Wi-Fi bootstrap, AES credential decrypt flow, OLED status output, and DB registration reference.
 - src/system.cpp: Remote command actions such as BLK and RST.
 - src/oneWire.cpp: DS18B20 scan/read logic and formatted payload output.
+- docs/oneWire.md: Detailed DS18B20 scan, CRC validation, payload format, and return-code reference.
 
 ## Runtime Flow
 1. setup() starts Serial and calls configSensors(sensorName).
