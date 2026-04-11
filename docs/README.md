@@ -11,6 +11,14 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 - system.cpp: BLK/RST command actions.
 - setStatic.cpp: legacy static-IP experiment (currently commented out).
 
+## Docs Index
+- main.md: module-level notes for server entry point and request handling.
+- login.md: WiFi/AES/LittleFS and backend update behavior.
+- sensors.md: sensor discovery and payload formation.
+- oneWire.md: DS18B20 read flow and return codes.
+- system.md: BLK/RST command effects.
+- setStatic.md: archived static-IP design notes.
+
 ## Protocol Summary
 - TCP port: 8888
 - Sensor read command: ALL

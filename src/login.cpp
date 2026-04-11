@@ -76,6 +76,7 @@ void encrypt_stub(char *str, char *str2);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext);
 int readEncyptWifiCredentials(char *cssid_psw_aes);
 void upDateDB(String sensorName);
+String performHttpGet(const char *url);
 
 /**
  * @brief Initializes the Wi-Fi connection and sets up the display and database.
@@ -116,15 +117,15 @@ int beginWIFI(String sensorName)
 
   if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
-    
+
   aes_init();
-  
-   // WARNING: make a copy the below function will corrutped the input byte array 
+
+  // WARNING: make a copy the below function will corrutped the input byte array
   memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), enc_iv_to, cleartext);
 
   temp = cleartext;
-  index = temp.indexOf(":");  // get eos token
+  index = temp.indexOf(":"); // get eos token
   ssid = temp.substring(0, index);
   pass = temp.substring(index + 1);
 
@@ -168,10 +169,24 @@ int beginWIFI(String sensorName)
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
   Serial.print("Port ");
-  Serial.println(PORT); //
+  Serial.println(PORT);
+  String IP = WiFi.localIP().toString();
+  String phpScript = "http://192.168.1.252/deleteIP.php?key=" + (String)IP;
+  performHttpGet(phpScript.c_str());
 
-  upDateDB(sensorName);
-
+  //String foo;
+  //char *token = strtok((char *)sensorName.c_str(), "_");
+  //if (token == NULL)
+    upDateDB(sensorName);  // only single sensor on 
+  // else
+  // {
+  //   while (token != NULL)
+  //   {
+  //     foo = token;
+  //     upDateDB(foo);
+  //     token = strtok(NULL, "_");
+  //   }
+  // }
   return 0;
 }
 /**
@@ -213,7 +228,7 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[])
   decrypt_to_cleartext(ciphertext, strlen(ciphertext), enc_iv_to, cleartext);
   // Serial.printf("decrypt str %s\n", cleartext);
 
-  if (!strcmp(cleartext, msg))  // need mod == 0 
+  if (!strcmp(cleartext, msg)) // need mod == 0
     Serial.println("match");
   return enc_length;
 }
@@ -295,7 +310,7 @@ void upDateDB(String sensorName)
   WiFiClient client_sql;
   HTTPClient http;
   char macAddr[80];
-  String payload, IP, httpRequestData, serverName ,apiKeyValue,sensorLocation;
+  String payload, IP, httpRequestData, serverName, apiKeyValue, sensorLocation;
 
   WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
   IP = WiFi.localIP().toString();
@@ -313,7 +328,26 @@ void upDateDB(String sensorName)
   // delay(500);
   int httpResponseCode = http.POST(httpRequestData);
   payload = http.getString();
-  Serial.printf("http rc %d payload %s \n\t %s", httpResponseCode, payload.c_str(), httpRequestData.c_str());
+  Serial.printf("http rc %d payload %s \n\t %s\n", httpResponseCode, payload.c_str(), httpRequestData.c_str());
   http.end();
   return;
+}
+String performHttpGet(const char *url)
+{
+ WiFiClient client_sql;
+  HTTPClient http;
+  http.begin(client_sql, url);
+  int httpResponseCode = http.GET();
+  if (httpResponseCode != 200)
+  {
+    Serial.printf("HTTP GET failed with code: %d\n", httpResponseCode);
+    return ""; // Return an empty string on failure
+  }
+  String response = http.getString();
+  http.end();
+
+#ifdef DEBUG_PHP
+  Serial.printf("url: %s Payload: %s\n", url, response.c_str());
+#endif
+  return response;
 }
