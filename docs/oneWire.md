@@ -26,15 +26,20 @@ Return codes:
 For each discovered sensor:
 1. validates ROM CRC
 2. starts conversion (`0x44`)
-3. waits conversion delay
-4. reads scratchpad (`0xBE`)
+3. waits conversion delay (`delay(1000)`)
+4. reads scratchpad (`0xBE`, 9 bytes)
 5. validates scratchpad CRC
-6. converts raw reading to Fahrenheit
+6. converts raw 16-bit reading to Fahrenheit: `(raw / 16.0) * 1.8 + 32`
 
 Output row style:
 `<addr_byte0_hex>,<temp_f>,|,`
 
+**Known issue:** The `addr[8]` array is overwritten on each loop iteration. After the search loop, `addr[0]` holds only the **last** device's address byte. All output rows therefore share the same address prefix — multi-device identification is unreliable.
+
+After formatting, the last character of the output string is overwritten with `'0'` to remove the trailing comma.
+
 ## Notes
 - Uses blocking delay for conversion (`delay(1000)`), so readings are synchronous.
+- Supports up to 10 devices (`temp[10]` array).
 - Includes debug logging when `DEBUG` is defined.
 - The payload final-character cleanup is manual and should be reviewed if format changes.
