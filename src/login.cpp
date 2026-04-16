@@ -174,19 +174,8 @@ int beginWIFI(String sensorName)
   String phpScript = "http://192.168.1.252/deleteIP.php?key=" + (String)IP;
   performHttpGet(phpScript.c_str());
 
-  //String foo;
-  //char *token = strtok((char *)sensorName.c_str(), "_");
-  //if (token == NULL)
-    upDateDB(sensorName);  // only single sensor on 
-  // else
-  // {
-  //   while (token != NULL)
-  //   {
-  //     foo = token;
-  //     upDateDB(foo);
-  //     token = strtok(NULL, "_");
-  //   }
-  // }
+  upDateDB(sensorName); // only single sensor on
+
   return 0;
 }
 /**
@@ -334,7 +323,7 @@ void upDateDB(String sensorName)
 }
 String performHttpGet(const char *url)
 {
- WiFiClient client_sql;
+  WiFiClient client_sql;
   HTTPClient http;
   http.begin(client_sql, url);
   int httpResponseCode = http.GET();
