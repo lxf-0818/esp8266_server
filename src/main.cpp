@@ -84,8 +84,8 @@ void setup()
   else
     Serial.println("\n No Device Found check wiring");
     
-  pinMode(D6, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(D6, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
   
 }

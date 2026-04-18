@@ -33,4 +33,4 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 
 ## Notes
 - Socket payload may be AES/base64 encrypted depending on compile flags.
-- ISR currently does serial and delay work, which is generally unsafe in interrupt context.
+- ISR currently does serial and delay work, which is generally unsafe in interrupt context. (testing only)

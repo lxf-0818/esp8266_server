@@ -21,7 +21,7 @@ Discovers available sensors on ESP8266, configures them, and builds telemetry pa
 - returns number of installed sensors
 
 ### getSensorData(cmd, str)
-- reads active sensors (respects `*_CNFG` flags)
+- reads active sensors (if `*_CNFG` flags are set)
 - builds `,|,` separated record list (trailing `,|,` stripped before output)
 - computes CRC32
 - encrypts payload unless `NO_SOCKET_AES` is defined
