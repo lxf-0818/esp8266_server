@@ -1,29 +1,45 @@
 # main.cpp
 
 ## Purpose
-Implements the ESP8266 TCP server loop and command dispatch.
+Runs the ESP8266 TCP server on port `8888` and dispatches incoming commands to either
+sensor reads or system tasks.
 
-## Startup
-- initializes serial
-- calls `configSensors`
-- starts server and WiFi only when at least one sensor is found
-- configures `D6` as `INPUT_PULLUP` and `LED_BUILTIN` as `OUTPUT`
-- attaches ISR on `D6` (`CHANGE` trigger)
+## Setup Sequence
+`setup()` performs the following in order:
+1. Starts serial at `115200`.
+2. Calls `configSensors(sensorName)`.
+3. Starts `server.begin()` and `beginWIFI(sensorName)` only if at least one sensor is detected.
+4. If no sensor is found, logs `No Device Found check wiring` and skips WiFi/server startup.
+5. Configures `LED_BUILTIN` as `OUTPUT` and `D6` as `INPUT_PULLUP`.
+6. Attaches ISR on `D6` using `CHANGE` trigger.
+5. Configures `LED_BUILTIN` as `OUTPUT` and `D6` as `INPUT_PULLUP`.
+6. Attaches ISR on `D6` using `CHANGE` trigger.
 
 ## Request Handling
-- waits for TCP client on port `8888`
-- uppercases incoming command bytes into `cmdFromClient`
-- 5-second read timeout; discards data beyond buffer limit
+- Accepts a client with `server.accept()`.
+- Logs remote IP once connected.
+- Waits up to `5000 ms` for input bytes, then times out and closes the socket.
+- Uppercases each received byte into `cmdFromClient[80]`.
+- Discards bytes beyond `79` characters to avoid command-buffer overflow.
 
-Command paths:
-- `ALL...` → `getSensorData()` fills `results`, then sent to client
-- other → sends `<CMD>_<local_ip>` to client, closes socket, then calls `performSystemTask()`
+## Command Routing
+- `ALL` prefix: calls `getSensorData(cmdFromClient, results)`.
+- Any other command:
+	- builds `<CMD>_<local_ip>` into `results`.
+	- calls `performSystemTask(cmdFromClient)`.
 
-**Note:** After the if/else block, `client.print(results)` and `client.stop()` are called again unconditionally. For the `ALL` path this is the intended send; for the non-`ALL` path the client is already stopped so the second call is a no-op.
+After routing, the response is sent once with `client.print(results)`, then the connection is closed with `client.stop()`.
+
+## Buffers and Limits
+- `cmdFromClient[80]`: command input buffer.
+- `results[512]`: response payload buffer for both sensor and control paths.
+- `sensorName[100]`, `str[80]`, `Buf[80]`: startup/local temporary buffers.
 
 ## Side Effects
-- prints client IP and response to serial
-- closes socket after each exchange
+- Prints client details and response payload to serial output.
+- Closes the client socket after every handled request.
 
-## Interrupt Note
-`isr()` (ICACHE_RAM_ATTR) toggles `LED_BUILTIN` once (HIGH 500 ms → LOW 500 ms) and prints to serial. Uses `delay()` inside ISR — functional for testing but not safe for production.
+## ISR Note
+`isr()` is marked `ICACHE_RAM_ATTR` and toggles `LED_BUILTIN` once using two `delay(500)` calls,
+then prints `in isr` to serial. This is acceptable for bring-up/testing, but `delay()` and serial I/O
+inside an ISR are unsafe for production firmware.

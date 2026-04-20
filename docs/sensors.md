@@ -1,57 +1,72 @@
 # sensors.cpp
 
 ## Purpose
-Discovers available sensors on ESP8266, configures them, and builds telemetry payloads for socket responses.
+Detects supported sensors, stores their bus mappings, and builds the socket telemetry payload.
 
-## Supported Sensors
-- BMP3XX (`0x77`) → tag `BMX`
-- BME280 (`0x76`) → tag `BME`
-- BMP280 (`0x76` / chip id `BMP280_CHIPID`) → tag `BMP`
-- SHT85 (`0x44`) → tag `SHT` (uses `SHT85.h` library, `SHT35` class)
-- ADS1115 (`0x48`) → tag `ADC`
-- DS18B20 (one-wire) → tag `DS1`
+## Supported Sensors and Tags
+- BMP3XX at `0x77`: tag `BMX`.
+- BME280 at `0x76`: tag `BME`.
+- BMP280: tag `BMP`.
+- SHT35/SHT85 family at `0x44`: tag `SHT`.
+- ADS1115 at `0x48`: tag `ADC`.
+- DS18B20 one-wire devices: tag `DS1`.
 
 ## Key APIs
 
 ### configSensors(sensorName)
-- scans one-wire first, then I2C via `scanI2Cports()`
-- initializes available drivers (BMP3XX, BME280, BMP280, SHT, ADS1115)
-- ADS1115 gain set to `GAIN_ONE` (+/- 4.096 V, 0.125 mV resolution)
-- appends discovered tags to `sensorName` with `_` separators
-- returns number of installed sensors
+1. Calls `scanOneWire()` and adds one `DS1` tag per detected one-wire device.
+2. Calls `scanI2Cports()` to discover I2C address-to-pin mappings.
+3. Attempts sensor driver init in this order: BMP3XX, BME280, BMP280, SHT, ADS1115.
+4. For ADS1115, sets `GAIN_ONE` (`+/-4.096V`, `0.125mV/bit`).
+5. Builds `sensorName` as underscore-joined tags (for example `BME_ADC_DS1`).
+6. Returns sensor count.
+
+Sensor enable flags are persisted in `*_CNFG` globals and consumed by `getSensorData()`.
+
+## Payload Assembly
 
 ### getSensorData(cmd, str)
-- reads active sensors (if `*_CNFG` flags are set)
-- builds `,|,` separated record list (trailing `,|,` stripped before output)
-- computes CRC32
-- encrypts payload unless `NO_SOCKET_AES` is defined
-- returns string format:
-  - encrypted mode: `<crc32_hex>:<ciphertext>`
-  - no-aes mode: `<crc32_hex>:<plaintext>`
+- Ignores `cmd` currently.
+- Reads each configured sensor and concatenates row strings separated by `,|,`.
+- Removes final separator before checksum/encryption stage.
+- If no devices are active, returns `no sensors found`.
 
-### scanI2Cports() / check_if_exist_I2C()
-Brute-force scans SDA/SCL pin pair combinations (D0–D7) and stores discovered device address + pin mapping in `devices[]` array. Resets ESP on unknown I2C error (error code 4).
+Output format:
+- AES enabled (default): `<crc32_hex>:<ciphertext>`.
+- `NO_SOCKET_AES` build: `<crc32_hex>:<plaintext>`.
+
+CRC is calculated over the post-encryption text (`tmp`) in AES mode, and over plaintext in `NO_SOCKET_AES` mode.
+
+## Per-Sensor Row Formats
+- BMP3XX: `77,<temp_f>,<pressure_hpa>,|,`
+- BME280: `76,<temp_f>,<humidity>,<altitude>,|,`
+- BMP280: `<BMP280_CHIPID>,<temp_f>,<altitude>,|,`
+- SHT: `44,<temp_f>,<humidity>,|,`
+- ADS1115: `48,<volts0>,<volts1>,<rRatio>|,`
+- DS18B20: `<addr_byte0>,<temp_f>,|,` via `readTemp()`
+
+## I2C Mapping Model
+
+### scanI2Cports()
+Brute-force scans all distinct SDA/SCL pairs from:
+- pins: `16,5,4,0,2,14,12,13`
+- labels: `D0..D7`
+
+Each pair runs `check_if_exist_I2C()`.
+
+### check_if_exist_I2C()
+- probes addresses `1..126`.
+- stores hit in `devices[]` as `{I2Caddr, sca, scl}`.
+- on wire error code `4`, logs and resets with `ESP.reset()`.
 
 ### setWireBegin(addr)
-Selects SDA/SCL pins associated with given I2C address and calls `Wire.begin(sda, scl)`.
-- Returns `1` if address found in `devices[]` and Wire initialized
-- Returns `0` if address not found (Wire not re-initialized)
+Looks up `addr` in `devices[]`, runs `Wire.begin(sca, scl)`, returns `1` on success, `0` if not mapped.
 
-## Payload Record Shape
-Each sensor contributes one row. Format varies by sensor:
-
-| Sensor | Format | Fields |
-|--------|--------|--------|
-| BMP3XX | `77,<temp_f>,<pressure_hpa>,\|,` | temp (°F), pressure (hPa) |
-| BME280 | `76,<temp_f>,<humidity>,<altitude>,\|,` | temp (°F), humidity (%), altitude (m) |
-| BMP280 | `<BMP280_CHIPID>,<temp_f>,<altitude>,\|,` | temp (°F), altitude (m) — uses chip ID not I2C addr |
-| SHT85 | `44,<temp_f>,<humidity>,\|,` | temp (°F), humidity (%) |
-| ADS1115 | `48,<volts0>,<volts1>,<rRatio>\|,` | A0 volts, A1 volts (ESP 3V ref), resistor divider ratio (5.63 = (220k+47k)/47k) |
-| DS18B20 | `<addr_byte0>,<temp_f>,\|,` | per-device via `readTemp()` |
-
-Rows are concatenated using `,|,`.
+## Compile Flags
+- `DEBUG_SCAN`: enables verbose scan logs (enabled in current file).
+- `NO_SOCKET_AES`: disables socket encryption path when uncommented.
 
 ## Constraints
-- fixed-size buffers (512 bytes) used in formatting paths
-- I2C scan is broad across all D0–D7 pin pairs; can be slow/noisy in debug mode
-- a discovered address map (`devices[]`) is required before per-sensor reads
+- Uses fixed-size local buffers (`tmp[512]`, `encrypt_string[512]`).
+- `DEVICES` is `5` for the I2C mapping array.
+- Full SDA/SCL permutation scan is intentionally broad and can be slow/noisy.

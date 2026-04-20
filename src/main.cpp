@@ -156,8 +156,6 @@ void loop()
     {
       String IP = WiFi.localIP().toString();
       snprintf(results, sizeof(results), "%s_%s", cmdFromClient, IP.c_str());
-      client.print(results);
-      client.stop();
       performSystemTask(cmdFromClient);
       
     }
