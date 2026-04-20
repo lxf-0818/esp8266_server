@@ -50,6 +50,7 @@
 #define SHT_ADDRESS 0x44
 #define BMx_ADDRESS 0x76
 #define BMPX_ADDRESS 0x77
+#define BMP_ADDRESS 0x58
 #define ADC_ADDRESS 0x48
 #define MCP_ADDRESS 0x18
 #define DEVICES 5
@@ -146,11 +147,10 @@ int configSensors(char *sensorName)
         BME_CNFG = true;
         sensorsInstalled++;
     }
-    if (bmp.begin(BMx_ADDRESS, BMP280_CHIPID))
-    {
-        sensorArray[sensorsInstalled] = "BMP";
-        BMP_CNFG = true;
-        sensorsInstalled++;
+    if (bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
+       sensorArray[sensorsInstalled] = "BMP";
+       BMP_CNFG = true;
+       sensorsInstalled++;
     }
     setWireBegin(SHT_ADDRESS);
     if (sht.begin(SHT_ADDRESS))
@@ -234,7 +234,7 @@ void getSensorData(char *cmd, char *str)
     }
     if (BMP_CNFG)
     {
-        setWireBegin(BMx_ADDRESS);
+        setWireBegin(BMP280_CHIPID);
         sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
                 bmp.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
