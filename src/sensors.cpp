@@ -65,12 +65,11 @@ void scanI2Cports();
 int readTemp(char *str);
 void encrypt_stub(char *str, char *str2);
 
-uint8_t i, j;
-uint8_t portArray[] = {16, 5, 4, 0, 2, 14, 12, 13};
+// Valid pins for I2C
 String portMap[] = {"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"};
+uint8_t portArray[] = {16, 5, 4, 0, 2, 14, 12, 13};
 int myCnt = 0;
-
-// String portMap[] = {"GPIO16", "GPIO5", "GPIO4", "GPIO0", "GPIO2", "GPIO14", "GPIO12", "GPIO13"};
+uint8_t i, j;
 
 // I2C
 Adafruit_BME280 bme;
@@ -117,9 +116,8 @@ int configSensors(char *sensorName)
     int sensorsInstalled = 0;
     String s, sensorArray[DEVICES];
 
-    
     int ds1Cnt = scanOneWire();
-    for (int i = 0; i < ds1Cnt; i++)
+    for (int z = 0; z < ds1Cnt; z++)
     {
         sensorArray[sensorsInstalled++] = "DS1";
         DS1_CNFG = true;
@@ -147,10 +145,11 @@ int configSensors(char *sensorName)
         BME_CNFG = true;
         sensorsInstalled++;
     }
-    if (bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
-       sensorArray[sensorsInstalled] = "BMP";
-       BMP_CNFG = true;
-       sensorsInstalled++;
+    if (bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID))
+    {
+        sensorArray[sensorsInstalled] = "BMP";
+        BMP_CNFG = true;
+        sensorsInstalled++;
     }
     setWireBegin(SHT_ADDRESS);
     if (sht.begin(SHT_ADDRESS))

@@ -12,8 +12,6 @@ sensor reads or system tasks.
 4. If no sensor is found, logs `No Device Found check wiring` and skips WiFi/server startup.
 5. Configures `LED_BUILTIN` as `OUTPUT` and `D6` as `INPUT_PULLUP`.
 6. Attaches ISR on `D6` using `CHANGE` trigger.
-5. Configures `LED_BUILTIN` as `OUTPUT` and `D6` as `INPUT_PULLUP`.
-6. Attaches ISR on `D6` using `CHANGE` trigger.
 
 ## Request Handling
 - Accepts a client with `server.accept()`.

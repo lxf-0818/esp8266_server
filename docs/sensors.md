@@ -6,10 +6,10 @@ Detects supported sensors, stores their bus mappings, and builds the socket tele
 ## Supported Sensors and Tags
 - BMP3XX at `0x77`: tag `BMX`.
 - BME280 at `0x76`: tag `BME`.
-- BMP280: tag `BMP`.
-- SHT35/SHT85 family at `0x44`: tag `SHT`.
+- BMP280: at `0x58`:tag `BMP`.
+- SHT35/SHT85 at`0x44`: tag `SHT`.
 - ADS1115 at `0x48`: tag `ADC`.
-- DS18B20 one-wire devices: tag `DS1`.
+- DS18B20 one-wire devices: at `0x28` : tag `DS1`.
 
 ## Key APIs
 
@@ -25,8 +25,7 @@ Sensor enable flags are persisted in `*_CNFG` globals and consumed by `getSensor
 
 ## Payload Assembly
 
-### getSensorData(cmd, str)
-- Ignores `cmd` currently.
+### getSensorData(str)
 - Reads each configured sensor and concatenates row strings separated by `,|,`.
 - Removes final separator before checksum/encryption stage.
 - If no devices are active, returns `no sensors found`.
@@ -49,8 +48,8 @@ CRC is calculated over the post-encryption text (`tmp`) in AES mode, and over pl
 
 ### scanI2Cports()
 Brute-force scans all distinct SDA/SCL pairs from:
-- pins: `16,5,4,0,2,14,12,13`
 - labels: `D0..D7`
+- pins: `16,5,4,0,2,14,12,13`
 
 Each pair runs `check_if_exist_I2C()`.
 

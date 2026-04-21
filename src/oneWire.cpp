@@ -38,7 +38,7 @@ int scanOneWire()
       if (deviceCount)
       {
 #ifdef DEBUG
-        Serial.printf("DS18B20 detected cnt:%d\n", deviceCount);
+        Serial.printf("\nDS18B20 detected cnt:%d\n", deviceCount);
 #endif
         oneWire.reset_search();
       }
