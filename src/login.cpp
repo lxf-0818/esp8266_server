@@ -61,19 +61,23 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
 AESLib aesLib;
-// AES Encryption Key (same as in node-js example)
-byte aes_key[] = {0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C};
-byte aes_iv[N_BLOCK] = {0x05, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-byte enc_iv_to[N_BLOCK] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-byte enc_iv_from[N_BLOCK] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// AES Encryption Keys 
+byte aes_key[N_BLOCK];
+byte aes_iv[N_BLOCK];
+byte new_aes_key[N_BLOCK];
+byte new_aes_iv[N_BLOCK];
+byte aes_iv_copy[N_BLOCK];
 char cleartext[INPUT_BUFFER_LIMIT] = {0};      // THIS IS INPUT BUFFER (FOR TEXT)
 char ciphertext[2 * INPUT_BUFFER_LIMIT] = {0}; // THIS IS OUTPUT BUFFER (FOR BASE64-ENCODED ENCRYPTED DATA)
+
 int setWireBegin(int addr);
 void aes_init();
+int readAES(char *fileName, byte data[]);
+String readLittle(char *fileName);
 int beginWIFI(String sensorName);
-uint16_t encrypt_to_ciphertext(char *msg, byte iv[]);
+uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[]);
 void encrypt_stub(char *str, char *str2);
-void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext);
+void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], char *cleartext);
 int readEncyptWifiCredentials(char *cssid_psw_aes);
 void upDateDB(String sensorName);
 String performHttpGet(const char *url);
@@ -117,12 +121,13 @@ int beginWIFI(String sensorName)
 
   if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
-
+  readAES((char *)"/aes.txt", aes_key);
+  readAES((char *)"/iv.txt", aes_iv);
   aes_init();
 
   // WARNING: make a copy the below function will corrutped the input byte array
-  memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
-  decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), enc_iv_to, cleartext);
+  memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
+  decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), aes_iv_copy, aes_key, cleartext);
 
   temp = cleartext;
   index = temp.indexOf(":"); // get eos token
@@ -170,6 +175,8 @@ int beginWIFI(String sensorName)
   Serial.println(WiFi.localIP());
   Serial.print("Port ");
   Serial.println(PORT);
+
+  // remove stale entry in DB based on IP@
   String IP = WiFi.localIP().toString();
   String phpScript = "http://192.168.1.252/deleteIP.php?key=" + (String)IP;
   performHttpGet(phpScript.c_str());
@@ -197,38 +204,40 @@ void aes_init()
 void encrypt_stub(char *str, char *aes_encrypt)
 {
 
-  memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
-  int length = encrypt_to_ciphertext(str, enc_iv_to);
+  memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
+  int length = encrypt_to_ciphertext(str, aes_iv_copy, aes_key);
 
   strncpy(aes_encrypt, ciphertext, length + 1);
   Serial.printf("clear text      %s\n", str);
   Serial.printf("encrypt string: %s\n", ciphertext);
 }
-uint16_t encrypt_to_ciphertext(char *msg, byte iv[])
+uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[])
 {
   int msgLen = strlen(msg);
   int cipherlength = aesLib.get_cipher64_length(msgLen);
   char encrypted_bytes[cipherlength];
-  uint16_t enc_length = aesLib.encrypt64((byte *)msg, msgLen, encrypted_bytes, aes_key, sizeof(aes_key), iv);
+  uint16_t enc_length = aesLib.encrypt64((byte *)msg, msgLen, encrypted_bytes, key, sizeof(aes_key), iv);
   sprintf(ciphertext, "%s", encrypted_bytes);
 
   // test aes en/de crypt to ensure we are good to go
-  memcpy(enc_iv_to, aes_iv, sizeof(aes_iv));
-  decrypt_to_cleartext(ciphertext, strlen(ciphertext), enc_iv_to, cleartext);
-  // Serial.printf("decrypt str %s\n", cleartext);
+  memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
+  decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy,key, cleartext);
+  Serial.printf("decrypt str %s\n", cleartext);
 
   if (!strcmp(cleartext, msg)) // need mod == 0
     Serial.println("match");
+  else
+    Serial.println("no match");
   return enc_length;
 }
-void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext)
+void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[],byte key[], char *cleartext)
 {
 
 #ifdef ESP8266
   // Serial.print("[decrypt_to_cleartext] free heap: ");
   ESP.getFreeHeap();
 #endif
-  uint16_t decLen = aesLib.decrypt64(msg, msgLen, (byte *)cleartext, aes_key, sizeof(aes_key), iv);
+  uint16_t decLen = aesLib.decrypt64(msg, msgLen, (byte *)cleartext, key, sizeof(aes_key), iv);
   cleartext[decLen] = '\0'; // added lxf
 }
 /**
@@ -260,18 +269,8 @@ int readEncyptWifiCredentials(char *ssid_psw)
     Serial.println("Error mounting the file system");
     return 1;
   }
-
-  File file = LittleFS.open("/ssid_pass_aes.txt", "r");
-  if (!file)
-  {
-    Serial.println("Failed to open ssid_pass_aes.txt file for reading");
-    return 2;
-  }
-  ssid_psw_aes.clear();
-  while (file.available())
-    ssid_psw_aes.concat(static_cast<char>(file.read()));
-
-  file.close();
+  ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
+ 
   strcpy(ssid_psw, ssid_psw_aes.c_str()); // return ssid-pass  as *char
   return 0;
 }
@@ -339,4 +338,45 @@ String performHttpGet(const char *url)
   Serial.printf("url: %s Payload: %s\n", url, response.c_str());
 #endif
   return response;
+}
+int readAES(char *fileName, byte data[])
+{
+  String tmp;
+  File file = LittleFS.open(fileName, "r");
+  if (!file)
+  {
+    Serial.printf("Failed to open %s file for reading\n", fileName);
+    return 2;
+  }
+  tmp.clear();
+  while (file.available())
+    tmp.concat(static_cast<char>(file.read()));
+
+  int foo, i = 0;
+  char *token = strtok((char *)tmp.c_str(), ",");
+  while (token != NULL)
+  {
+    sscanf(token, "%x", &foo); // convert ASCII string to hex 0xYY
+    data[i++] = foo;
+    token = strtok(NULL, ",");
+  }
+  file.close();
+  return 0;
+}
+String readLittle(char *fileName)
+{
+  String returnString;
+  File file = LittleFS.open(fileName, "r");
+  if (!file)
+  {
+    Serial.printf("Failed to open %s file for reading\n", fileName);
+    return "";
+  }
+  returnString.clear();
+  while (file.available())
+    returnString.concat(static_cast<char>(file.read()));
+
+  file.close();
+
+  return returnString;
 }

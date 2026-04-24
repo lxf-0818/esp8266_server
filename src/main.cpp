@@ -43,13 +43,14 @@
  * @warning
  * - Ensure the server IP and port are correctly configured.
  * - Handle sensitive data securely if encryption is implemented.
+ * 
  * sample output:
  *  setup()
  *    Connected to NETGEAR37-2
  *    IP address: 192.168.1.3 
 *     Port 8888
 *     http rc 200 payload 110| 
-*         api_key=tPmAT5Ab3j7F9&board=esp8266&location=HOME&IPv4Address=192.168.1.3&macAddress=C8:C9:A3:10:E2:BF&sensor=BMX192.168.1.8  Client(esp32) Connected to Server
+*         api_key=xxxxxxx&board=esp8266&location=HOME&IPv4Address=192.168.1.3&macAddress=C8:C9:A3:10:E2:BF&sensor=BMX192.168.1.8  Client(esp32) Connected to Server
 *   loop()
 *     -> address 0x77 sca 5 scl 4
 *     match
@@ -60,7 +61,7 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 
-
+ char results[512];
 int configSensors(char *sensorName);
 void encrypt_stub(char *str, char *str2);
 void getSensorData(char *cmdFromClient, char *str);
@@ -117,8 +118,8 @@ void setup()
  */
 void loop()
 {
+  
   unsigned j = 0;
-  char results[512];
   client = server.accept(); //
   if (client)
   {
