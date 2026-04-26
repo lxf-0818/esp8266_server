@@ -396,17 +396,4 @@ String readLittle(char *fileName)
 
   return returnString;
 }
-void conver2hexAscii(unsigned char *iv)
-{
 
-  //unsigned char iv[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
-
-  char hexAscii[49]; //16*3 +1
-  for (int i = 0; i < 16; i++)
-  {
-    sprintf(hexAscii + (i * 3), "%02x,", iv[i]);
-  }
-  hexAscii[47] = '\0'; //remove last coma ",'"
-
-  printf("Hex String: %s\n", hexAscii);
-}
