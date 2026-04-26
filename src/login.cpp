@@ -117,20 +117,19 @@ int beginWIFI(String sensorName)
 {
   String ssid, pass, temp;
   char cssid_psw_aes[580];
+  byte iv[N_BLOCK];
   int index;
   unsigned long startAttemptTime = millis();
   const unsigned long wifiTimeout = 20000; // 20 seconds timeout
-
+// todo pass back iv from ssid_pass_iv.txt
   if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
   readAES((char *)"/aes.txt", aes_key);
   readAES((char *)"/iv.txt", aes_iv);
   aes_init();
- // conver2hexAscii(aes_iv);
-  // printf("Hex String: %s\n", foo.c_str());
 
   // WARNING: make a copy the below function will corrutped the input byte array
-  memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
+  memcpy(aes_iv_copy, aes_iv, sizeof(iv));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), aes_iv_copy, aes_key, cleartext);
 
   temp = cleartext;
@@ -207,7 +206,7 @@ void aes_init()
 
 void encrypt_stub(char *str, char *aes_encrypt)
 {
-
+  //aes_init();
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
   int length = encrypt_to_ciphertext(str, aes_iv_copy, aes_key);
 
@@ -274,10 +273,10 @@ int readEncyptWifiCredentials(char *ssid_psw)
     return 1;
   }
   ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
-  // no reason to do this
-  // iv_ssid_psw_aes = readLittle((char *)"/ssid_pass_aes_copy.txt");
+  //
+  // iv_ssid_psw_aes = readLittle((char *)"/ssid_pass_iv.txt");
   // unsigned int foo;
-  // byte tmp_iv[16];
+  // //byte tmp_iv[16];
   // int i = 0;
   // char *token = strtok((char *)iv_ssid_psw_aes.c_str(), ",");
   // while (token != NULL)

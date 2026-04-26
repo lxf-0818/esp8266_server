@@ -45,7 +45,7 @@
 #include <ArduinoJson.h>
 
 #define DEBUG_SCAN
-//#define NO_SOCKET_AES
+// #define NO_SOCKET_AES
 
 #define SHT_ADDRESS 0x44
 #define BMx_ADDRESS 0x76
@@ -64,6 +64,10 @@ int check_if_exist_I2C();
 void scanI2Cports();
 int readTemp(char *str);
 void encrypt_stub(char *str, char *str2);
+String convert2hexAscii(unsigned char *iv);
+
+// tmp iv before gen iv
+int readAES(char *fileName, byte data[]);
 
 // Valid pins for I2C
 String portMap[] = {"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"};
@@ -209,7 +213,7 @@ void getSensorData(char *cmd, char *str)
 {
     (void)cmd; // stop warning error
     char tmp[512];
-    char encrypt_string[512] = {'\0'}; // Declare encrypt_string
+    //  char encrypt_string[512] = {'\0'}; // Declare encrypt_string
     String sensorsData;
     int deviceCnt = 0;
 
@@ -254,12 +258,12 @@ void getSensorData(char *cmd, char *str)
     }
     if (ADC_CNFG)
     {
-        float rRatio = 5.63;  // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
+        float rRatio = 5.63; // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
         setWireBegin(ADC_ADDRESS);
         float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
-        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1,rRatio);
-        //Serial.printf("A1 is connected to 3V on ESP\n");
+        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1, rRatio);
+        // Serial.printf("A1 is connected to 3V on ESP\n");
         sensorsData.concat(str);
         deviceCnt++;
     }
@@ -285,10 +289,17 @@ void getSensorData(char *cmd, char *str)
     uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
     uint32_t calcCRC = calcCRC32(data, strlen(tmp));
 #ifndef NO_SOCKET_AES
-    sprintf(str, "%x:%s", calcCRC, tmp);
+  //  AESLib aesLib;
+    byte aes_iv[N_BLOCK];
+    String iv;
+  // aesLib.gen_iv(aes_iv);
+    // testing only use above in 0roduction
+      readAES((char *)"/iv.txt", aes_iv);
+    iv = convert2hexAscii(aes_iv);
+    sprintf(str, "%x:%s:%s", calcCRC, tmp, iv.c_str());
 #else
     bzero(str, 512);
-    sprintf(str, "%x:%s", calcCRC,sensorsData.c_str());
+    sprintf(str, "%x:%s", calcCRC, sensorsData.c_str());
 #endif
 }
 
@@ -328,7 +339,7 @@ void scanI2Cports()
 #endif
                 }
             }
-       }
+        }
     }
 }
 
@@ -404,4 +415,16 @@ int setWireBegin(int addr)
         }
     }
     return 0;
+}
+String convert2hexAscii(unsigned char *iv)
+{
+    char hexAscii[49]; // 16*3 +1
+    for (int i = 0; i < 16; i++)
+    {
+        sprintf(hexAscii + (i * 3), "%02x,", iv[i]);
+    }
+    hexAscii[47] = '\0'; // remove last coma "," replace with null
+
+    String returnString = hexAscii;
+    return returnString;
 }
