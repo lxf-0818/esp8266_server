@@ -36,7 +36,7 @@ extern char ciphertext[4096];
 int length = -1;
 
 String readLittle(char *fileName);
-//int writeLittle(char *fileName, const char *message);
+int writeLittle(char *fileName, const char *message);
 
 uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte aes[]);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], char *cleartext);

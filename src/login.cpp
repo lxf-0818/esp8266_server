@@ -61,7 +61,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
 AESLib aesLib;
-// AES Encryption Keys 
+// AES Encryption Keys
 byte aes_key[N_BLOCK];
 byte aes_iv[N_BLOCK];
 byte new_aes_key[N_BLOCK];
@@ -81,6 +81,8 @@ void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], cha
 int readEncyptWifiCredentials(char *cssid_psw_aes);
 void upDateDB(String sensorName);
 String performHttpGet(const char *url);
+void conver2hexAscii(unsigned char *iv);
+int writeLittle(char *fileName, const char *message);
 
 /**
  * @brief Initializes the Wi-Fi connection and sets up the display and database.
@@ -124,6 +126,8 @@ int beginWIFI(String sensorName)
   readAES((char *)"/aes.txt", aes_key);
   readAES((char *)"/iv.txt", aes_iv);
   aes_init();
+ // conver2hexAscii(aes_iv);
+  // printf("Hex String: %s\n", foo.c_str());
 
   // WARNING: make a copy the below function will corrutped the input byte array
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
@@ -260,7 +264,7 @@ void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[],byte key[], char
  */
 int readEncyptWifiCredentials(char *ssid_psw)
 {
-  String ssid_psw_aes;
+  String ssid_psw_aes,iv_ssid_psw_aes;
   // Serial.println(decLen);
 
   bool success = LittleFS.begin();
@@ -270,7 +274,19 @@ int readEncyptWifiCredentials(char *ssid_psw)
     return 1;
   }
   ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
- 
+  // no reason to do this
+  // iv_ssid_psw_aes = readLittle((char *)"/ssid_pass_aes_copy.txt");
+  // unsigned int foo;
+  // byte tmp_iv[16];
+  // int i = 0;
+  // char *token = strtok((char *)iv_ssid_psw_aes.c_str(), ",");
+  // while (token != NULL)
+  // {
+  //   sscanf(token, "%x", &foo); // convert ASCII string to hex 0xYY
+  //   tmp_iv[i++] = foo;
+  //   token = strtok(NULL, ",");
+  // }
+
   strcpy(ssid_psw, ssid_psw_aes.c_str()); // return ssid-pass  as *char
   return 0;
 }
@@ -379,4 +395,18 @@ String readLittle(char *fileName)
   file.close();
 
   return returnString;
+}
+void conver2hexAscii(unsigned char *iv)
+{
+
+  //unsigned char iv[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+
+  char hexAscii[49]; //16*3 +1
+  for (int i = 0; i < 16; i++)
+  {
+    sprintf(hexAscii + (i * 3), "%02x,", iv[i]);
+  }
+  hexAscii[47] = '\0'; //remove last coma ",'"
+
+  printf("Hex String: %s\n", hexAscii);
 }
