@@ -67,6 +67,7 @@ byte aes_iv[N_BLOCK];
 byte new_aes_key[N_BLOCK];
 byte new_aes_iv[N_BLOCK];
 byte aes_iv_copy[N_BLOCK];
+byte aes_key_copy[N_BLOCK];
 char cleartext[INPUT_BUFFER_LIMIT] = {0};      // THIS IS INPUT BUFFER (FOR TEXT)
 char ciphertext[2 * INPUT_BUFFER_LIMIT] = {0}; // THIS IS OUTPUT BUFFER (FOR BASE64-ENCODED ENCRYPTED DATA)
 
@@ -121,15 +122,15 @@ int beginWIFI(String sensorName)
   int index;
   unsigned long startAttemptTime = millis();
   const unsigned long wifiTimeout = 20000; // 20 seconds timeout
-                                           // todo pass back iv from ssid_pass_iv.txt
   if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
   readAES((char *)"/aes.txt", aes_key);
-  readAES((char *)"/iv.txt", iv);
+  readAES((char *)"/iv.txt", iv); // read the "static" IV that was used to create encripted ssid:pass
   aes_init();
 
   // WARNING: make a copy the below function will corrutped the input byte array
-  memcpy(aes_iv_copy, iv, sizeof(iv));
+  memcpy(aes_iv_copy, iv, sizeof(iv)); 
+  memcpy(aes_key_copy, aes_key, sizeof(aes_key));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), aes_iv_copy, aes_key, cleartext);
 
   temp = cleartext;
@@ -140,7 +141,7 @@ int beginWIFI(String sensorName)
   // Note: need to time out
   WiFi.begin(ssid.c_str(), pass.c_str()); // Connect to wifi
 
-  Serial.println("Connecting to Wifi");
+  Serial.println("\nConnecting to Wifi");
   while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < wifiTimeout)
   {
     delay(500);
@@ -200,15 +201,16 @@ int beginWIFI(String sensorName)
  */
 void aes_init()
 {
-  aesLib.gen_iv(aes_iv);
+  //aesLib.gen_iv(aes_iv);
   aesLib.set_paddingmode((paddingMode)0);
 }
 
 void encrypt_stub(char *str, char *aes_encrypt)
 {
-  aesLib.gen_iv(aes_iv);
+  aesLib.gen_iv(aes_iv); 
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-  int length = encrypt_to_ciphertext(str, aes_iv_copy, aes_key);
+  memcpy(aes_key_copy, aes_key, sizeof(aes_key));
+  int length = encrypt_to_ciphertext(str, aes_iv_copy, aes_key_copy);
 
   strncpy(aes_encrypt, ciphertext, length + 1);
   //Serial.printf("clear text      %s\n", str);
@@ -224,7 +226,9 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[])
 
   // test aes en/de crypt to ensure we are good to go
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-  decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy, key, cleartext);
+  memcpy(aes_key_copy, aes_key, sizeof(aes_key));
+
+  decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy, aes_key_copy, cleartext);
 
   if (strcmp(cleartext, msg)) {
     Serial.println("no match");
