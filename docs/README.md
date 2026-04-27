@@ -21,16 +21,21 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 
 ## Protocol Summary
 - TCP port: 8888
-- Sensor read command: ALL
-- Control commands: BLK, RST
-- Sensor response format: `<crc32_hex>:<payload>`
+- Sensor read command: `ALL` (case-insensitive — received command is uppercased)
+- Control commands: `BLK`, `RST` (handled by `performSystemTask()`)
+- Sensor response format (AES on): `<crc32_hex>:<ciphertext>:<iv_hex_csv>`
+- Sensor response format (`NO_SOCKET_AES`): `<crc32_hex>:<plaintext>`
+- Non-`ALL` response format: `<cmd>_<server_IPv4>`
 
 ## Runtime Sequence
-1. `setup()` scans/initializes sensors.
-2. Starts `WiFiServer` and joins WiFi.
-3. Registers IP/MAC/sensor list with local PHP endpoint.
-4. `loop()` accepts one client request, responds, and closes socket.
+1. `setup()` scans/initializes sensors via `configSensors()`.
+2. If sensors found: starts `WiFiServer` then joins WiFi and registers with backend.
+3. If no sensors found: prints `No Device Found check wiring`; server never starts.
+4. Always: configures `LED_BUILTIN` output and attaches ISR to `D6` (`INPUT_PULLUP`, `CHANGE` edge).
+5. `loop()` accepts one client at a time; 5-second inactivity timeout; reads command (uppercased, max 79 chars).
+6. If command contains `ALL`: calls `getSensorData()` and returns encrypted/CRC payload.
+7. Otherwise: returns `<cmd>_<server_IP>` and calls `performSystemTask()`.
 
 ## Notes
-- Socket payload may be AES/base64 encrypted depending on compile flags.
-- ISR currently does serial and delay work, which is generally unsafe in interrupt context. (testing only)
+- Socket payload may be AES/base64 encrypted depending on compile flags (`NO_SOCKET_AES`).
+- ISR (`isr()`) attached to `D6` on `CHANGE` edge: blinks `LED_BUILTIN` once and prints to Serial. Serial and `delay()` in ISR context are unsafe and intended for testing only.

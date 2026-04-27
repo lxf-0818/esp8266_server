@@ -121,15 +121,15 @@ int beginWIFI(String sensorName)
   int index;
   unsigned long startAttemptTime = millis();
   const unsigned long wifiTimeout = 20000; // 20 seconds timeout
-// todo pass back iv from ssid_pass_iv.txt
+                                           // todo pass back iv from ssid_pass_iv.txt
   if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
   readAES((char *)"/aes.txt", aes_key);
-  readAES((char *)"/iv.txt", aes_iv);
+  readAES((char *)"/iv.txt", iv);
   aes_init();
 
   // WARNING: make a copy the below function will corrutped the input byte array
-  memcpy(aes_iv_copy, aes_iv, sizeof(iv));
+  memcpy(aes_iv_copy, iv, sizeof(iv));
   decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), aes_iv_copy, aes_key, cleartext);
 
   temp = cleartext;
@@ -192,7 +192,7 @@ int beginWIFI(String sensorName)
  * @brief Initializes the AES encryption library with the desired settings.
  *
  * This function sets up the AES library by configuring the padding mode.
- * The initialization vector (IV) generation is currently commented out.
+ * The initialization vector (IV) generation a random .
  *
  * Note:
  * - Ensure that the AES library is properly included and initialized before calling this function.
@@ -200,19 +200,19 @@ int beginWIFI(String sensorName)
  */
 void aes_init()
 {
-  // aesLib.gen_iv(aes_iv);
+  aesLib.gen_iv(aes_iv);
   aesLib.set_paddingmode((paddingMode)0);
 }
 
 void encrypt_stub(char *str, char *aes_encrypt)
 {
-  //aes_init();
+  aesLib.gen_iv(aes_iv);
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
   int length = encrypt_to_ciphertext(str, aes_iv_copy, aes_key);
 
   strncpy(aes_encrypt, ciphertext, length + 1);
-  Serial.printf("clear text      %s\n", str);
-  Serial.printf("encrypt string: %s\n", ciphertext);
+  //Serial.printf("clear text      %s\n", str);
+  //Serial.printf("encrypt string: %s\n", ciphertext);
 }
 uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[])
 {
@@ -224,16 +224,15 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[])
 
   // test aes en/de crypt to ensure we are good to go
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-  decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy,key, cleartext);
-  Serial.printf("decrypt str %s\n", cleartext);
+  decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy, key, cleartext);
 
-  if (!strcmp(cleartext, msg)) // need mod == 0
-    Serial.println("match");
-  else
+  if (strcmp(cleartext, msg)) {
     Serial.println("no match");
+    enc_length = -1;
+  }
   return enc_length;
 }
-void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[],byte key[], char *cleartext)
+void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], char *cleartext)
 {
 
 #ifdef ESP8266
@@ -263,7 +262,7 @@ void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[],byte key[], char
  */
 int readEncyptWifiCredentials(char *ssid_psw)
 {
-  String ssid_psw_aes,iv_ssid_psw_aes;
+  String ssid_psw_aes, iv_ssid_psw_aes;
   // Serial.println(decLen);
 
   bool success = LittleFS.begin();
@@ -273,19 +272,6 @@ int readEncyptWifiCredentials(char *ssid_psw)
     return 1;
   }
   ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
-  //
-  // iv_ssid_psw_aes = readLittle((char *)"/ssid_pass_iv.txt");
-  // unsigned int foo;
-  // //byte tmp_iv[16];
-  // int i = 0;
-  // char *token = strtok((char *)iv_ssid_psw_aes.c_str(), ",");
-  // while (token != NULL)
-  // {
-  //   sscanf(token, "%x", &foo); // convert ASCII string to hex 0xYY
-  //   tmp_iv[i++] = foo;
-  //   token = strtok(NULL, ",");
-  // }
-
   strcpy(ssid_psw, ssid_psw_aes.c_str()); // return ssid-pass  as *char
   return 0;
 }
@@ -395,4 +381,3 @@ String readLittle(char *fileName)
 
   return returnString;
 }
-

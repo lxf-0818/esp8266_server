@@ -44,7 +44,7 @@
 #include <CRC.h>
 #include <ArduinoJson.h>
 
-#define DEBUG_SCAN
+//#define DEBUG_SCAN
 // #define NO_SOCKET_AES
 
 #define SHT_ADDRESS 0x44
@@ -66,8 +66,8 @@ int readTemp(char *str);
 void encrypt_stub(char *str, char *str2);
 String convert2hexAscii(unsigned char *iv);
 
-// tmp iv before gen iv
 int readAES(char *fileName, byte data[]);
+extern byte aes_iv[N_BLOCK];
 
 // Valid pins for I2C
 String portMap[] = {"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"};
@@ -289,13 +289,8 @@ void getSensorData(char *cmd, char *str)
     uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
     uint32_t calcCRC = calcCRC32(data, strlen(tmp));
 #ifndef NO_SOCKET_AES
-  //  AESLib aesLib;
-    byte aes_iv[N_BLOCK];
-    String iv;
-  // aesLib.gen_iv(aes_iv);
-    // testing only use above in 0roduction
-      readAES((char *)"/iv.txt", aes_iv);
-    iv = convert2hexAscii(aes_iv);
+
+    String iv = convert2hexAscii(aes_iv);
     sprintf(str, "%x:%s:%s", calcCRC, tmp, iv.c_str());
 #else
     bzero(str, 512);

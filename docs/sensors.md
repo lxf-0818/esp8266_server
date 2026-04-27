@@ -25,16 +25,19 @@ Sensor enable flags are persisted in `*_CNFG` globals and consumed by `getSensor
 
 ## Payload Assembly
 
-### getSensorData(str)
+### getSensorData(cmd, str)
+- `cmd` is unused (silenced with `(void)cmd`).
 - Reads each configured sensor and concatenates row strings separated by `,|,`.
 - Removes final separator before checksum/encryption stage.
-- If no devices are active, returns `no sensors found`.
+- If no devices are active, writes `no sensors found` to `str` and returns early.
+- If SHT is configured but `sht.dataReady()` is false, writes `SHT data not ready` to `str` and skips SHT data.
 
 Output format:
-- AES enabled (default): `<crc32_hex>:<ciphertext>`.
+- AES enabled (default): `<crc32_hex>:<ciphertext>:<iv_hex_csv>`.
+  - IV is appended as 16 comma-separated two-digit hex bytes (e.g. `a1,b2,...,ff`).
 - `NO_SOCKET_AES` build: `<crc32_hex>:<plaintext>`.
 
-CRC is calculated over the post-encryption text (`tmp`) in AES mode, and over plaintext in `NO_SOCKET_AES` mode.
+CRC is calculated over the post-encryption ciphertext (`tmp`) in AES mode, and over the plaintext in `NO_SOCKET_AES` mode.
 
 ## Per-Sensor Row Formats
 - BMP3XX: `77,<temp_f>,<pressure_hpa>,|,`
@@ -62,8 +65,13 @@ Each pair runs `check_if_exist_I2C()`.
 Looks up `addr` in `devices[]`, runs `Wire.begin(sca, scl)`, returns `1` on success, `0` if not mapped.
 
 ## Compile Flags
-- `DEBUG_SCAN`: enables verbose scan logs (enabled in current file).
+- `DEBUG_SCAN`: enables verbose scan logs (currently **disabled** — `#define DEBUG_SCAN` is commented out).
 - `NO_SOCKET_AES`: disables socket encryption path when uncommented.
+
+## Helper Functions
+
+### convert2hexAscii(iv)
+Converts a 16-byte AES IV array to a comma-separated two-digit hex ASCII string (e.g. `a1,b2,…,ff`). The trailing comma is stripped. Returns an Arduino `String`.
 
 ## Constraints
 - Uses fixed-size local buffers (`tmp[512]`, `encrypt_string[512]`).
