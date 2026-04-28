@@ -87,7 +87,10 @@ struct I2C
 {
     int I2Caddr;
     int scl;
+    char sclPin[3];
     int sca;
+    char scaPin[3];
+
 };
 struct I2C devices[DEVICES];
 
@@ -236,11 +239,13 @@ void getSensorData(char *cmd, char *str)
     }
     if (BMP_CNFG)
     {
-        setWireBegin(BMP280_CHIPID);
-        sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
-                bmp.readAltitude(SEALEVELPRESSURE_HPA));
-        sensorsData.concat(str);
-        deviceCnt++;
+        if (setWireBegin(BMP280_CHIPID))
+        {
+            sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
+                    bmp.readAltitude(SEALEVELPRESSURE_HPA));
+            sensorsData.concat(str);
+            deviceCnt++;
+        }
     }
     if (SHT_CNFG)
     {
@@ -327,7 +332,7 @@ void scanI2Cports()
                 Wire.begin(portArray[i], portArray[j]);
                 if (check_if_exist_I2C())
                 {
-//#define DEBUG_SCAN
+// #define DEBUG_SCAN
 #ifdef DEBUG_SCAN
                     Serial.printf(" SDA %s(%d) SCL %s(%d) \n",
                                   portMap[i].c_str(), portArray[i], portMap[j].c_str(), portArray[j]);
@@ -384,10 +389,13 @@ int check_if_exist_I2C()
             Serial.println(supportedSensors[index], HEX);
 #endif
 
-        //    Serial.printf("valid sensor %x\n", supportedSensors[index]);
+            //    Serial.printf("valid sensor %x\n", supportedSensors[index]);
             devices[myCnt].I2Caddr = supportedSensors[index];
             devices[myCnt].sca = portArray[i];
+            strcpy(devices[myCnt].scaPin ,portMap[i].c_str());
+            strcpy(devices[myCnt].sclPin ,portMap[j].c_str());
             devices[myCnt++].scl = portArray[j];
+
             nDevices++;
         }
         else if (error == 4)
@@ -398,6 +406,8 @@ int check_if_exist_I2C()
     }
     return nDevices;
 }
+// Looks up `addr` in the `devices` table and calls Wire.begin() with the
+// matching SDA/SCL pins. Returns 1 if the address was found, 0 otherwise.
 int setWireBegin(int addr)
 {
     for (int j = 0; j < DEVICES; j++)
@@ -425,9 +435,9 @@ String convert2hexAscii(unsigned char *iv)
     String returnString = hexAscii;
     return returnString;
 }
-
+// Prints the I2C address, SDA, and SCL pin values for `deviceNo` to Serial.
 void printDevice(int deviceNo)
 {
-    Serial.printf("I2c addr %x sca %d scl %d \n",
-                  devices[deviceNo].I2Caddr, devices[deviceNo].sca, devices[deviceNo].scl);
+    Serial.printf("I2c addr %x sca %d(%s) scl %d(%s)  \n",
+                  devices[deviceNo].I2Caddr, devices[deviceNo].sca,devices[deviceNo].scaPin, devices[deviceNo].scl,devices[deviceNo].sclPin);
 }

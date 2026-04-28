@@ -1,49 +1,19 @@
 /**
  * @file login.cpp
- * @brief This file contains the implementation of WiFi initialization, AES encryption/decryption,
- *        and database update functionalities for an ESP8266-based server project.
+ * @brief WiFi initialization, credential decryption, and device registration for ESP8266.
  *
  * @details
- * - The code initializes WiFi credentials stored in an AES-encrypted file using LittleFS.
- * - It handles AES encryption and decryption for secure storage and transmission of sensitive data.
- * - It updates a remote database with the device's IP address and MAC address.
- * - It also configures an OLED display to show connection details.
+ * Manages the full startup sequence to bring the ESP8266 server online:
+ * 1. Mounts LittleFS and reads the AES-encrypted SSID/password file.
+ * 2. Decrypts the credentials using the key and IV stored in `aes.txt` / `iv.txt`.
+ * 3. Connects to WiFi with a 20-second timeout; restarts on credential failure.
+ * 4. Probes for an SSD1306 OLED (I2C) and displays IP + sensor name if found.
+ * 5. Removes any stale DB entry for this IP, then POSTs the MAC/IP/sensor record.
  *
- * @libraries
- * - Arduino.h: Core Arduino functions.
- * - FS.h: File system support.
- * - time.h: Time-related functions.*
- * - ESP8266WiFi.h: WiFi functionality for ESP8266.
- * - AESLib.h: AES encryption library.
- * - LittleFS.h: LittleFS file system support.
- * - ESP8266HTTPClient.h: HTTP client for ESP8266.
- * - Adafruit_SSD1306.h: OLED display library.
- *
- * @defines
- * - SCREEN_WIDTH: Width of the OLED display in pixels.
- * - SCREEN_HEIGHT: Height of the OLED display in pixels.
- * - SSD_ADDR: I2C address of the OLED display.
- * - PORT: Port number for the server.
- * - INPUT_BUFFER_LIMIT: Maximum size of input buffer for encryption/decryption.
- *
- * @functions
- * - int beginWIFI(String sensorName): Initializes WiFi connection using AES-decrypted credentials.
- * - void aes_init(): Initializes AES encryption settings.
- * - uint16_t encrypt_to_ciphertext(char *msg, byte iv[]): Encrypts a message using AES and returns the ciphertext length.
- * - void encrypt_stub(char *str, char *aes_encrypt): Encrypts a string and stores the result in a buffer.
- * - void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], char *cleartext): Decrypts a ciphertext into cleartext.
- * - int readEncyptWifiCredentials(char *cssid_psw_aes): Decrypts WiFi credentials stored in a file.
- * - void upDateDB(String sensorName): Updates a remote database with device information.
- *
- * @notes
- * - The WiFi credentials are stored in an AES-encrypted file named "ssid_pass_aes.txt" on the LittleFS file system.
- * - The OLED display is used to show the server name, IP address, and sensor name after successful WiFi connection.
- * - The database update function sends a POST request to a remote server with device details.
+ * Helper functions cover LittleFS raw reads (`readLittle`), hex-byte file parsing
+ * (`readAES`), and a generic HTTP GET wrapper (`performHttpGet`).
  *
  * @author Leon Freimour
- * @date 2025-3-28
- *
- * @dependencies
  */
 #include <Arduino.h>
 #include <FS.h>
@@ -60,25 +30,23 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define SSD_ADDR 0x3c
 #define PORT 8888
 #define INPUT_BUFFER_LIMIT 2048
-AESLib aesLib;
 // AES Encryption Keys
-byte aes_key[N_BLOCK];
-byte aes_iv[N_BLOCK];
-byte new_aes_key[N_BLOCK];
-byte new_aes_iv[N_BLOCK];
-byte aes_iv_copy[N_BLOCK];
-byte aes_key_copy[N_BLOCK];
-char cleartext[INPUT_BUFFER_LIMIT] = {0};      // THIS IS INPUT BUFFER (FOR TEXT)
-char ciphertext[2 * INPUT_BUFFER_LIMIT] = {0}; // THIS IS OUTPUT BUFFER (FOR BASE64-ENCODED ENCRYPTED DATA)
+extern byte aes_key[N_BLOCK];
+extern byte aes_iv[N_BLOCK];
+extern byte aes_iv_copy[N_BLOCK];
+extern byte aes_key_copy[N_BLOCK];
+extern char cleartext[];      // THIS IS INPUT BUFFER (FOR TEXT)
+
 
 int setWireBegin(int addr);
-void aes_init();
 int readAES(char *fileName, byte data[]);
 String readLittle(char *fileName);
 int beginWIFI(String sensorName);
-uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[]);
-void encrypt_stub(char *str, char *str2);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], char *cleartext);
+void aes_init();
+
+
+
 int readEncyptWifiCredentials(char *cssid_psw_aes);
 void upDateDB(String sensorName);
 String performHttpGet(const char *url);
@@ -122,16 +90,21 @@ int beginWIFI(String sensorName)
   int index;
   unsigned long startAttemptTime = millis();
   const unsigned long wifiTimeout = 20000; // 20 seconds timeout
+    //todo create wrapper in cryptography.cpp and return ssid ad passwork for below 
+    
+
   if (readEncyptWifiCredentials(cssid_psw_aes))
     ESP.restart();
   readAES((char *)"/aes.txt", aes_key);
-  readAES((char *)"/iv.txt", iv); // read the "static" IV that was used to create encripted ssid:pass
+  readAES((char *)"/iv.txt", iv); // read the "static" IV that was used to create encrypted ssid:pass
   aes_init();
 
   // WARNING: make a copy the below function will corrutped the input byte array
   memcpy(aes_iv_copy, iv, sizeof(iv)); 
   memcpy(aes_key_copy, aes_key, sizeof(aes_key));
-  decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), aes_iv_copy, aes_key, cleartext);
+  decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), aes_iv_copy, aes_key_copy, cleartext);
+
+  //retieve 
 
   temp = cleartext;
   index = temp.indexOf(":"); // get eos token
@@ -189,63 +162,7 @@ int beginWIFI(String sensorName)
 
   return 0;
 }
-/**
- * @brief Initializes the AES encryption library with the desired settings.
- *
- * This function sets up the AES library by configuring the padding mode.
- * The initialization vector (IV) generation a random .
- *
- * Note:
- * - Ensure that the AES library is properly included and initialized before calling this function.
- * - The padding mode is set using the `set_paddingmode` method with a specific mode.
- */
-void aes_init()
-{
-  //aesLib.gen_iv(aes_iv);
-  aesLib.set_paddingmode((paddingMode)0);
-}
 
-void encrypt_stub(char *str, char *aes_encrypt)
-{
-  aesLib.gen_iv(aes_iv); 
-  memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-  memcpy(aes_key_copy, aes_key, sizeof(aes_key));
-  int length = encrypt_to_ciphertext(str, aes_iv_copy, aes_key_copy);
-
-  strncpy(aes_encrypt, ciphertext, length + 1);
-  //Serial.printf("clear text      %s\n", str);
-  //Serial.printf("encrypt string: %s\n", ciphertext);
-}
-uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[])
-{
-  int msgLen = strlen(msg);
-  int cipherlength = aesLib.get_cipher64_length(msgLen);
-  char encrypted_bytes[cipherlength];
-  uint16_t enc_length = aesLib.encrypt64((byte *)msg, msgLen, encrypted_bytes, key, sizeof(aes_key), iv);
-  sprintf(ciphertext, "%s", encrypted_bytes);
-
-  // test aes en/de crypt to ensure we are good to go
-  memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-  memcpy(aes_key_copy, aes_key, sizeof(aes_key));
-
-  decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy, aes_key_copy, cleartext);
-
-  if (strcmp(cleartext, msg)) {
-    Serial.println("no match");
-    enc_length = -1;
-  }
-  return enc_length;
-}
-void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], char *cleartext)
-{
-
-#ifdef ESP8266
-  // Serial.print("[decrypt_to_cleartext] free heap: ");
-  ESP.getFreeHeap();
-#endif
-  uint16_t decLen = aesLib.decrypt64(msg, msgLen, (byte *)cleartext, key, sizeof(aes_key), iv);
-  cleartext[decLen] = '\0'; // added lxf
-}
 /**
  * @brief Reads encrypted Wi-Fi credentials from a file in the LittleFS file system.
  *
@@ -261,7 +178,7 @@ void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], cha
  *             - 1: Failed to mount the LittleFS file system.
  *             - 2: Failed to open the "/ssid_pass_aes.txt" file for reading.
  *
- * @note Ensure that the LittleFS library is properly initialized in your project. // wtf?
+ * @note Ensure that the LittleFS file system is mounted and the credentials file exists.
  *       The caller is responsible for providing a sufficiently large buffer for `ssid_psw`.
  */
 int readEncyptWifiCredentials(char *ssid_psw)
@@ -325,6 +242,8 @@ void upDateDB(String sensorName)
   http.end();
   return;
 }
+// Sends an HTTP GET request to `url` and returns the response body as a String.
+// Returns an empty String and logs an error if the response code is not 200.
 String performHttpGet(const char *url)
 {
   WiFiClient client_sql;
@@ -344,6 +263,9 @@ String performHttpGet(const char *url)
 #endif
   return response;
 }
+// Opens `fileName` from LittleFS and parses its comma-separated hex byte values
+// (e.g. "a1,b2,...") into the `data` array. Returns 0 on success, 2 if the file
+// cannot be opened.
 int readAES(char *fileName, byte data[])
 {
   String tmp;
@@ -368,6 +290,8 @@ int readAES(char *fileName, byte data[])
   file.close();
   return 0;
 }
+// Reads the full contents of `fileName` from LittleFS and returns them as a String.
+// Returns an empty String and logs an error if the file cannot be opened.
 String readLittle(char *fileName)
 {
   String returnString;

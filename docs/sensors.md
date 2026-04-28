@@ -21,6 +21,26 @@ Detects supported sensors, stores their bus mappings, and builds the socket tele
 5. Builds `sensorName` as underscore-joined tags (for example `BME_ADC_DS1`).
 6. Returns sensor count.
 
+## I2C Mapping Model
+
+### scanI2Cports()
+Brute-force scans all distinct SDA/SCL pairs from:
+- labels: `D0..D7`
+- pins: `16,5,4,0,2,14,12,13`
+
+Note : Using a brute-force scan design, avoids building a long chain of nested if then else cases for every possible pin combination. That keeps the logic simpler, easier to maintain, and easier to extend if the supported pin set changes later. Another benefit is that the user does not have to be concerned about the exact SDA/SCL pin pairing , can use any pin pair from  D0-7
+                      address 0x77 sca 5 scl 4
+
+Each pair runs `check_if_exist_I2C()`.
+
+### check_if_exist_I2C()
+- probes only the known supported sensors addresses: `0x44, 0x76, 0x18, 0x58, 0x48, 0x77` (targeted scan, not brute-force).
+- stores hit in `devices[]` struct as `{I2Caddr, sca, scl}`.
+- on wire error code `4`, logs and resets with `ESP.reset()`.
+
+### setWireBegin(addr)
+Looks up `addr` in struct`devices[]`, runs `Wire.begin(sca, scl)`, returns `1` on success, `0` if not mapped.
+
 Sensor enable flags are persisted in `*_CNFG` globals and consumed by `getSensorData()`.
 
 ## Payload Assembly
@@ -47,22 +67,6 @@ CRC is calculated over the post-encryption ciphertext (`tmp`) in AES mode, and o
 - ADS1115: `48,<volts0>,<volts1>,<rRatio>|,`
 - DS18B20: `<addr_byte0>,<temp_f>,|,` via `readTemp()`
 
-## I2C Mapping Model
-
-### scanI2Cports()
-Brute-force scans all distinct SDA/SCL pairs from:
-- labels: `D0..D7`
-- pins: `16,5,4,0,2,14,12,13`
-
-Each pair runs `check_if_exist_I2C()`.
-
-### check_if_exist_I2C()
-- probes only the known supported sensors addresses: `0x44, 0x76, 0x18, 0x58, 0x48, 0x77` (targeted scan, not brute-force).
-- stores hit in `devices[]` as `{I2Caddr, sca, scl}`.
-- on wire error code `4`, logs and resets with `ESP.reset()`.
-
-### setWireBegin(addr)
-Looks up `addr` in `devices[]`, runs `Wire.begin(sca, scl)`, returns `1` on success, `0` if not mapped.
 
 ## Compile Flags
 - `DEBUG_SCAN`: enables verbose scan logs; currently **enabled** via `#define DEBUG_SCAN` inside `scanI2Cports()` (local definition).
@@ -79,4 +83,4 @@ Prints the I2C address, SDA pin, and SCL pin of a `devices[]` entry to Serial. D
 ## Constraints
 - Uses fixed-size local buffers (`tmp[512]`, `encrypt_string[512]`).
 - `DEVICES` is `5` for the I2C mapping array.
-- Full SDA/SCL permutation scan is intentionally broad and can be slow/noisy.
+- Full SDA/SCL permutation scan is intentionally broad is alow and can be noisy when `DEBUG_SCAN` defined.

@@ -51,7 +51,7 @@ Called from `beginWIFI()` to purge stale IP registrations on boot.
 
 ## AES Helpers
 - `aes_init()` — generates a new random IV (`aesLib.gen_iv`) and sets padding mode to `0`.
-- `encrypt_to_ciphertext(msg, iv, key)` — AES-128 CBC encrypt + base64 encode into global `ciphertext[]`. Round-trip verifies by decrypting and comparing; returns `-1` (as `uint16_t`) on mismatch, otherwise returns ciphertext length.
+- `encrypt_to_ciphertext(msg, iv, key)` — AES-128 CBC encrypt + base64 encode into global    `ciphertext[]`. Round-trip verifies by decrypting and comparing; returns `-1` (as `uint16_t`) on mismatch, otherwise returns ciphertext length.
 - `encrypt_stub(str, aes_encrypt)` — generates a fresh IV, copies it, calls `encrypt_to_ciphertext`, then copies result into `aes_encrypt`.
 - `decrypt_to_cleartext(msg, msgLen, iv, key, cleartext)` — AES-128 CBC decrypt from base64 into `cleartext` buffer; null-terminates result.
 
