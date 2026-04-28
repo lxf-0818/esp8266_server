@@ -28,7 +28,7 @@ across the firmware:
 
 - `/ssid_pass_aes.txt` — AES-CBC-encrypted, base64-encoded `SSID:PASSWORD` blob
 - `/aes.txt` — comma-separated ASCII hex bytes of the 16-byte AES-128 key (e.g. `a1,b2,c3,...`)
-- `/iv.txt` — comma-separated ASCII hex bytes of the 16-byte IV used when the credential blob was encrypted
+- `/iv.txt` — comma-separated ASCII hex bytes of the 16-byte IV used only used for the credential blob was encrypted
 
 ## Key APIs
 
