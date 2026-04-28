@@ -1,65 +1,56 @@
 # login.cpp
 
 ## Purpose
-Handles ESP8266 network startup and cryptography helpers:
-- read encrypted WiFi credentials from LittleFS
-- decrypt SSID/password
-- connect to WiFi
-- clean up stale IP registration via HTTP GET to `deleteIP.php`
-- publish board metadata to local backend
+Handles the ESP8266 startup sequence to bring the server online:
+- decrypt and apply stored WiFi credentials (delegated to `cryptography.cpp`)
+- connect to WiFi with a 20-second timeout
+- optionally initialise an SSD1306 OLED display over I2C
+- purge any stale IP registration from the remote database
+- register the board's MAC address, IP address, and sensor name
 
-## Filesystem Inputs
-- `/ssid_pass_aes.txt` (required) — encrypted WiFi credential blob
-- `/aes.txt` (required) — comma-separated hex bytes of the AES-128 key
-- `/iv.txt` (required) — comma-separated hex bytes of the AES IV used to decrypt credentials
+## Dependencies
+- `cryptography.cpp` — `readEncyptWifiCredentials()` for credential decryption
+- `system.cpp` — `setWireBegin()` for I2C bus initialisation
 
 ## Key APIs
 
 ### beginWIFI(sensorName)
-1. calls `readEncyptWifiCredentials()` — on failure calls `ESP.restart()`.
-2. loads key from `/aes.txt` and IV from `/iv.txt` via `readAES()`.
-3. decrypts credential blob to `SSID:PASSWORD` (colon-separated).
-4. joins WiFi with 20-second timeout.
-5. probes `SSD_ADDR` (0x3C) over I2C; if present, initializes SSD1306 display (shows "server PIO", IP, sensor name).
-6. calls `performHttpGet()` to delete stale IP entry: `deleteIP.php?key=<local_ip>`.
-7. posts metadata to `saveIP.php` via `upDateDB()`.
+Main entry point called from `setup()`.
+
+1. Calls `readEncyptWifiCredentials()` to obtain the decrypted `SSID:PASSWORD` string; calls `ESP.restart()` on failure.
+2. Splits on `:` to separate SSID and password, then calls `WiFi.begin()`.
+3. Polls `WiFi.status()` every 500 ms for up to 20 seconds; returns `1` on timeout.
+4. Probes I2C address `SSD_ADDR` (0x3C) via `Wire.beginTransmission()`; if an SSD1306 is present, initialises it and displays:
+   - `"server PIO"`
+   - local IP address
+   - `sensorName`
+5. Issues an HTTP GET to `deleteIP.php?key=<local_ip>` to purge any stale DB entry.
+6. Calls `upDateDB()` to POST the current MAC/IP/sensor record.
 
 Return value:
 - `0` success
-- `1` timeout/failure to join WiFi
-
-### readEncyptWifiCredentials(ssid_psw)
-Mounts LittleFS and reads `/ssid_pass_aes.txt` into provided buffer via `readLittle()`.
-File-open failures inside `readLittle()` are silent (returns empty string); the caller receives an empty credential string rather than an error code.
-
-Return value:
-- `0` success
-- `1` failed to mount LittleFS
+- `1` WiFi connection timed out
 
 ### upDateDB(sensorName)
-HTTP POST to `saveIP.php` with:
-- api key
-- board type (`esp8266`)
-- location (`HOME`)
-- IPv4 address
-- MAC address
-- sensor name list
+HTTP POST to `http://192.168.1.252/saveIP.php` with form-encoded fields:
+
+| Field | Value |
+|---|---|
+| `api_key` | hardcoded token |
+| `board` | `esp8266` |
+| `location` | `HOME` |
+| `IPv4Address` | `WiFi.localIP()` |
+| `macAddress` | `WiFi.macAddress()` |
+| `sensor` | `sensorName` argument |
+
+Logs the HTTP response code and payload to Serial. No return value.
 
 ### performHttpGet(url)
-HTTP GET wrapper. Returns response string or empty string on non-200 status.
-Called from `beginWIFI()` to purge stale IP registrations on boot.
+Thin HTTP GET wrapper.
 
-## AES Helpers
-- `aes_init()` — generates a new random IV (`aesLib.gen_iv`) and sets padding mode to `0`.
-- `encrypt_to_ciphertext(msg, iv, key)` — AES-128 CBC encrypt + base64 encode into global    `ciphertext[]`. Round-trip verifies by decrypting and comparing; returns `-1` (as `uint16_t`) on mismatch, otherwise returns ciphertext length.
-- `encrypt_stub(str, aes_encrypt)` — generates a fresh IV, copies it, calls `encrypt_to_ciphertext`, then copies result into `aes_encrypt`.
-- `decrypt_to_cleartext(msg, msgLen, iv, key, cleartext)` — AES-128 CBC decrypt from base64 into `cleartext` buffer; null-terminates result.
-
-## LittleFS Helpers
-- `readAES(fileName, data[])` — opens a comma-separated hex file (e.g. `a1,b2,...`) and parses it into a `byte[]` array.
-- `readLittle(fileName)` — reads a full file from LittleFS and returns it as an Arduino `String`.
-
-AES is configured with static 16-byte key (`aes_key`) in module scope.
+- Returns the response body as an Arduino `String` on HTTP 200.
+- Returns an empty `String` and logs the status code on any other response.
+- Called by `beginWIFI()` to purge stale IP registrations on boot.
 
 ## Compile Flags
-- `DEBUG_PHP` — enables verbose logging of `performHttpGet()` URL and response payload.
+- `DEBUG_PHP` — enables verbose URL + response payload logging inside `performHttpGet()`.

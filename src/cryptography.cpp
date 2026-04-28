@@ -47,6 +47,15 @@ char cleartext[INPUT_BUFFER_LIMIT] = {0};      // THIS IS INPUT BUFFER (FOR TEXT
 char ciphertext[2 * INPUT_BUFFER_LIMIT] = {0}; // THIS IS OUTPUT BUFFER (FOR BASE64-ENCODED ENCRYPTED DATA)
 
 
+/**
+ * @brief Initialises the AES library for encrypt/decrypt operations.
+ *
+ * Sets the AESLib padding mode to `0` (zero-padding). Must be called once
+ * before any encrypt or decrypt operation.
+ *
+ * @note `aesLib.gen_iv()` is commented out here; per-call IV generation is
+ *       performed instead inside `encrypt_stub()`.
+ */
 void aes_init()
 {
   //aesLib.gen_iv(aes_iv);
@@ -142,22 +151,19 @@ void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], cha
   cleartext[decLen] = '\0'; // added lxf
 }
 /**
- * @brief Reads encrypted Wi-Fi credentials from a file in the LittleFS file system.
+ * @brief Mounts LittleFS, reads and decrypts the stored WiFi credentials.
  *
- * This function attempts to mount the LittleFS file system and read the contents
- * of the file "/ssid_pass_aes.txt". The file is expected to contain encrypted Wi-Fi
- * credentials. The credentials are returned as a null-terminated C-style string
- * through the provided `ssid_psw` buffer.
+ * Reads the AES-CBC-encrypted credential blob from `/ssid_pass_aes.txt`,
+ * loads the key from `/aes.txt` and the IV from `/iv.txt`, then decrypts
+ * the blob into a `SSID:PASSWORD` string written to `ssid_psw`.
  *
- * @param ssid_psw A pointer to a character array where the decrypted Wi-Fi credentials
- *                 will be stored. The array must be large enough to hold the credentials.
+ * @param ssid_psw Output buffer for the null-terminated `SSID:PASSWORD` plaintext.
+ *                 Must be at least `INPUT_BUFFER_LIMIT` bytes.
  *
- * @return int Returns 0 on success, or an error code on failure:
- *             - 1: Failed to mount the LittleFS file system.
- *             - 2: Failed to open the "/ssid_pass_aes.txt" file for reading.
+ * @return 0 on success, 1 if LittleFS cannot be mounted.
  *
- * @note Ensure that the LittleFS file system is mounted and the credentials file exists.
- *       The caller is responsible for providing a sufficiently large buffer for `ssid_psw`.
+ * @note Individual file-open failures inside `readLittle()` / `readAES()` yield
+ *       empty or zero data rather than a propagated error code.
  */
 
 
@@ -182,6 +188,18 @@ int readEncyptWifiCredentials(char *ssid_psw)
   return 0;
 }
 
+/**
+ * @brief Parses a comma-separated hex file from LittleFS into a byte array.
+ *
+ * Opens `fileName`, reads ASCII hex tokens (e.g. `"a1,b2,c3,..."`), and stores
+ * each converted byte in `data[]`. Typical callers pass `/aes.txt` (key) or
+ * `/iv.txt` (IV).
+ *
+ * @param fileName LittleFS path to the comma-separated hex file.
+ * @param data     Output byte array; must hold all tokens (16 bytes for a
+ *                 128-bit AES key or IV).
+ * @return 0 on success, 2 if the file cannot be opened.
+ */
 int readAES(char *fileName, byte data[])
 {
   String tmp;
@@ -206,8 +224,13 @@ int readAES(char *fileName, byte data[])
   file.close();
   return 0;
 }
-// Reads the full contents of `fileName` from LittleFS and returns them as a String.
-// Returns an empty String and logs an error if the file cannot be opened.
+/**
+ * @brief Reads the full contents of a LittleFS file and returns them as a String.
+ *
+ * @param fileName LittleFS path of the file to read.
+ * @return File contents as an Arduino String, or an empty String if the file
+ *         cannot be opened (an error is logged to Serial).
+ */
 String readLittle(char *fileName)
 {
   String returnString;

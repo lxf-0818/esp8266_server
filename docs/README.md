@@ -5,7 +5,8 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 
 ## Module Map
 - main.cpp: TCP server lifecycle, command dispatch, ISR hook.
-- login.cpp: LittleFS credential decrypt, WiFi join, AES helpers, HTTP device registration.
+- login.cpp: WiFi join, SSD1306 display init, HTTP device registration.
+- cryptography.cpp: AES-128-CBC encrypt/decrypt helpers, LittleFS key/IV readers, WiFi credential decryption.
 - sensors.cpp: Sensor discovery, I2C scan mapping, sensor payload build and CRC/encrypt path.
 - oneWire.cpp: DS18B20 one-wire detection and temperature reads.
 - system.cpp: BLK/RST command actions.
@@ -13,7 +14,8 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 
 ## Docs Index
 - main.md: module-level notes for server entry point and request handling.
-- login.md: WiFi/AES/LittleFS and backend update behavior.
+- login.md: WiFi join, display init, and backend registration.
+- cryptography.md: AES helpers, global buffers, LittleFS key/IV I/O, credential decrypt flow.
 - sensors.md: sensor discovery and payload formation.
 - oneWire.md: DS18B20 read flow and return codes.
 - system.md: BLK/RST command effects.
