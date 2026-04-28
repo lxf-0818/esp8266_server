@@ -1,26 +1,25 @@
 /**
- * @file login.cpp
- * @brief WiFi initialization, credential decryption, and device registration for ESP8266.
+ **
+ * @brief Connects to WiFi, optionally initialises the SSD1306 display, and
+ *        registers the device in the remote database.
  *
  * @details
- * Manages the full startup sequence to bring the ESP8266 server online:
- * 1. Mounts LittleFS and reads the AES-encrypted SSID/password file.
- * 2. Decrypts the credentials using the key and IV stored in `aes.txt` / `iv.txt`.
- * 3. Connects to WiFi with a 20-second timeout; restarts on credential failure.
- * 4. Probes for an SSD1306 OLED (I2C) and displays IP + sensor name if found.
- * 5. Removes any stale DB entry for this IP, then POSTs the MAC/IP/sensor record.
+ * 1  Calls `readEncyptWifiCredentials()` to return the ssid:password
+ * 2. calls `WiFi.begin()`
+ * 3. Waits up to 20 seconds for `WL_CONNECTED`; returns `1` on timeout.
+ * 4. Probes I2C address `SSD_ADDR` (0x3C); if an SSD1306 is present, displays
+ *    "server PIO", the local IP, and `sensorName`.
+ * 5. Issues an HTTP GET to `deleteIP.php` to purge any stale DB entry for
+ *    this IP, then calls `upDateDB()` to register the current MAC/IP/sensor.
  *
- * Helper functions cover LittleFS raw reads (`readLittle`), hex-byte file parsing
- * (`readAES`), and a generic HTTP GET wrapper (`performHttpGet`).
+ * @param sensorName Name of the sensor shown on the display and stored in the DB.
+ * @return 0 on success, 1 if the WiFi connection times out.
  *
  * @author Leon Freimour
  */
 #include <Arduino.h>
-#include <FS.h>
 #include <time.h>
 #include <ESP8266WiFi.h>
-#include <AESLib.h>
-#include <LittleFS.h>
 #include <ESP8266HTTPClient.h>
 #include <Adafruit_SSD1306.h>
 
@@ -29,91 +28,32 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define SSD_ADDR 0x3c
 #define PORT 8888
-#define INPUT_BUFFER_LIMIT 2048
-// AES Encryption Keys
-extern byte aes_key[N_BLOCK];
-extern byte aes_iv[N_BLOCK];
-extern byte aes_iv_copy[N_BLOCK];
-extern byte aes_key_copy[N_BLOCK];
-extern char cleartext[];      // THIS IS INPUT BUFFER (FOR TEXT)
-
-
 int setWireBegin(int addr);
-int readAES(char *fileName, byte data[]);
-String readLittle(char *fileName);
+
 int beginWIFI(String sensorName);
-void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], char *cleartext);
-void aes_init();
-
-
-
-int readEncyptWifiCredentials(char *cssid_psw_aes);
+int readEncyptWifiCredentials(char *cssid_psw);
 void upDateDB(String sensorName);
 String performHttpGet(const char *url);
 void conver2hexAscii(unsigned char *iv);
 int writeLittle(char *fileName, const char *message);
 
-/**
- * @brief Initializes the Wi-Fi connection and sets up the display and database.
- *
- * Function "beginWiFi()" retrieves Wi-Fi credentials stored in an AES-encrypted file on the chip,
- * decrypts them, and attempts to connect to the specified Wi-Fi network. If the connection
- * is successful, it initializes the SSD1306 display if connected to show the server information and updates
- * the database with the provided sensor name.
- *
- * @param sensorName A string representing the name of the sensor to be displayed and updated in the database.
- * @return int Returns 0 on success, or 1 if the Wi-Fi connection fails within the timeout period.
- *
- * @note The Wi-Fi credentials are stored in a text file on the chip using LittleFS and are AES-encrypted.
- *       The function will restart the ESP device if decryption of Wi-Fi credentials fails.
- *
- * @details
- * - The function uses a timeout of 5 seconds to attempt a Wi-Fi connection.
- * - If the Wi-Fi connection is successful, the SSD1306 display is initialized to show:
- *   - "server PIO"
- *   - The local IP address of the device
- *   - The provided sensor name
- * - The function also updates the database with the sensor name.
- * - If the SSD1306 display initialization fails, an error message is printed to the serial monitor.
- *
- * @dependencies
- * - Requires the AES encryption/decryption functions (`aes_init`, `readEncyptWifiCredentials`, `decrypt_to_cleartext`).
- * - Requires the Wi-Fi library for ESP8266 (`WiFi`).
- * - Requires the SSD1306 display library (`Adafruit_SSD1306`).
- * - Requires the Wire library for I2C communication.
- */
+
 int beginWIFI(String sensorName)
 {
   String ssid, pass, temp;
-  char cssid_psw_aes[580];
-  byte iv[N_BLOCK];
-  int index;
+  char cssid_psw[80];
   unsigned long startAttemptTime = millis();
   const unsigned long wifiTimeout = 20000; // 20 seconds timeout
-    //todo create wrapper in cryptography.cpp and return ssid ad passwork for below 
-    
 
-  if (readEncyptWifiCredentials(cssid_psw_aes))
+  if (readEncyptWifiCredentials(cssid_psw))
     ESP.restart();
-  readAES((char *)"/aes.txt", aes_key);
-  readAES((char *)"/iv.txt", iv); // read the "static" IV that was used to create encrypted ssid:pass
-  aes_init();
-
-  // WARNING: make a copy the below function will corrutped the input byte array
-  memcpy(aes_iv_copy, iv, sizeof(iv)); 
-  memcpy(aes_key_copy, aes_key, sizeof(aes_key));
-  decrypt_to_cleartext(cssid_psw_aes, strlen(cssid_psw_aes), aes_iv_copy, aes_key_copy, cleartext);
-
-  //retieve 
-
-  temp = cleartext;
-  index = temp.indexOf(":"); // get eos token
+  
+  temp = cssid_psw;
+  int index = temp.indexOf(":"); // get eos token
   ssid = temp.substring(0, index);
   pass = temp.substring(index + 1);
 
-  // Note: need to time out
   WiFi.begin(ssid.c_str(), pass.c_str()); // Connect to wifi
-
   Serial.println("\nConnecting to Wifi");
   while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < wifiTimeout)
   {
@@ -157,45 +97,12 @@ int beginWIFI(String sensorName)
   String IP = WiFi.localIP().toString();
   String phpScript = "http://192.168.1.252/deleteIP.php?key=" + (String)IP;
   performHttpGet(phpScript.c_str());
-
-  upDateDB(sensorName); // only single sensor on
+  upDateDB(sensorName); 
 
   return 0;
 }
 
-/**
- * @brief Reads encrypted Wi-Fi credentials from a file in the LittleFS file system.
- *
- * This function attempts to mount the LittleFS file system and read the contents
- * of the file "/ssid_pass_aes.txt". The file is expected to contain encrypted Wi-Fi
- * credentials. The credentials are returned as a null-terminated C-style string
- * through the provided `ssid_psw` buffer.
- *
- * @param ssid_psw A pointer to a character array where the decrypted Wi-Fi credentials
- *                 will be stored. The array must be large enough to hold the credentials.
- *
- * @return int Returns 0 on success, or an error code on failure:
- *             - 1: Failed to mount the LittleFS file system.
- *             - 2: Failed to open the "/ssid_pass_aes.txt" file for reading.
- *
- * @note Ensure that the LittleFS file system is mounted and the credentials file exists.
- *       The caller is responsible for providing a sufficiently large buffer for `ssid_psw`.
- */
-int readEncyptWifiCredentials(char *ssid_psw)
-{
-  String ssid_psw_aes, iv_ssid_psw_aes;
-  // Serial.println(decLen);
 
-  bool success = LittleFS.begin();
-  if (!success)
-  {
-    Serial.println("Error mounting the file system");
-    return 1;
-  }
-  ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
-  strcpy(ssid_psw, ssid_psw_aes.c_str()); // return ssid-pass  as *char
-  return 0;
-}
 /**
  * @brief Sends an HTTP POST request to update the database with sensor and device information.
  *
@@ -242,8 +149,18 @@ void upDateDB(String sensorName)
   http.end();
   return;
 }
-// Sends an HTTP GET request to `url` and returns the response body as a String.
-// Returns an empty String and logs an error if the response code is not 200.
+/**
+ * @brief Sends an HTTP GET request and returns the response body.
+ *
+ * Thin HTTP GET wrapper used by `beginWIFI()` to purge stale IP registrations
+ * on boot via `deleteIP.php`.
+ *
+ * @param url Null-terminated URL string for the GET request.
+ * @return String Response body on HTTP 200, or an empty String on any other
+ *         status code (the error code is logged to the serial monitor).
+ *
+ * @note Compile with `-DDEBUG_PHP` to enable verbose URL + payload logging.
+ */
 String performHttpGet(const char *url)
 {
   WiFiClient client_sql;
@@ -263,49 +180,4 @@ String performHttpGet(const char *url)
 #endif
   return response;
 }
-// Opens `fileName` from LittleFS and parses its comma-separated hex byte values
-// (e.g. "a1,b2,...") into the `data` array. Returns 0 on success, 2 if the file
-// cannot be opened.
-int readAES(char *fileName, byte data[])
-{
-  String tmp;
-  File file = LittleFS.open(fileName, "r");
-  if (!file)
-  {
-    Serial.printf("Failed to open %s file for reading\n", fileName);
-    return 2;
-  }
-  tmp.clear();
-  while (file.available())
-    tmp.concat(static_cast<char>(file.read()));
 
-  int foo, i = 0;
-  char *token = strtok((char *)tmp.c_str(), ",");
-  while (token != NULL)
-  {
-    sscanf(token, "%x", &foo); // convert ASCII string to hex 0xYY
-    data[i++] = foo;
-    token = strtok(NULL, ",");
-  }
-  file.close();
-  return 0;
-}
-// Reads the full contents of `fileName` from LittleFS and returns them as a String.
-// Returns an empty String and logs an error if the file cannot be opened.
-String readLittle(char *fileName)
-{
-  String returnString;
-  File file = LittleFS.open(fileName, "r");
-  if (!file)
-  {
-    Serial.printf("Failed to open %s file for reading\n", fileName);
-    return "";
-  }
-  returnString.clear();
-  while (file.available())
-    returnString.concat(static_cast<char>(file.read()));
-
-  file.close();
-
-  return returnString;
-}
