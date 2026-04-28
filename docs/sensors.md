@@ -57,7 +57,7 @@ Brute-force scans all distinct SDA/SCL pairs from:
 Each pair runs `check_if_exist_I2C()`.
 
 ### check_if_exist_I2C()
-- probes addresses `1..126`.
+- probes only the known supported sensors addresses: `0x44, 0x76, 0x18, 0x58, 0x48, 0x77` (targeted scan, not brute-force).
 - stores hit in `devices[]` as `{I2Caddr, sca, scl}`.
 - on wire error code `4`, logs and resets with `ESP.reset()`.
 
@@ -65,13 +65,16 @@ Each pair runs `check_if_exist_I2C()`.
 Looks up `addr` in `devices[]`, runs `Wire.begin(sca, scl)`, returns `1` on success, `0` if not mapped.
 
 ## Compile Flags
-- `DEBUG_SCAN`: enables verbose scan logs (currently **disabled** — `#define DEBUG_SCAN` is commented out).
+- `DEBUG_SCAN`: enables verbose scan logs; currently **enabled** via `#define DEBUG_SCAN` inside `scanI2Cports()` (local definition).
 - `NO_SOCKET_AES`: disables socket encryption path when uncommented.
 
 ## Helper Functions
 
 ### convert2hexAscii(iv)
 Converts a 16-byte AES IV array to a comma-separated two-digit hex ASCII string (e.g. `a1,b2,…,ff`). The trailing comma is stripped. Returns an Arduino `String`.
+
+### printDevice(deviceNo)
+Prints the I2C address, SDA pin, and SCL pin of a `devices[]` entry to Serial. Debug utility.
 
 ## Constraints
 - Uses fixed-size local buffers (`tmp[512]`, `encrypt_string[512]`).

@@ -44,8 +44,8 @@
 #include <CRC.h>
 #include <ArduinoJson.h>
 
-//#define DEBUG_SCAN
-// #define NO_SOCKET_AES
+// #define DEBUG_SCAN
+//  #define NO_SOCKET_AES
 
 #define SHT_ADDRESS 0x44
 #define BMx_ADDRESS 0x76
@@ -65,7 +65,6 @@ void scanI2Cports();
 int readTemp(char *str);
 void encrypt_stub(char *str, char *str2);
 String convert2hexAscii(unsigned char *iv);
-
 int readAES(char *fileName, byte data[]);
 extern byte aes_iv[N_BLOCK];
 
@@ -328,6 +327,7 @@ void scanI2Cports()
                 Wire.begin(portArray[i], portArray[j]);
                 if (check_if_exist_I2C())
                 {
+//#define DEBUG_SCAN
 #ifdef DEBUG_SCAN
                     Serial.printf(" SDA %s(%d) SCL %s(%d) \n",
                                   portMap[i].c_str(), portArray[i], portMap[j].c_str(), portArray[j]);
@@ -363,29 +363,31 @@ void scanI2Cports()
  */
 int check_if_exist_I2C()
 {
-    byte error, address;
+    byte error;
     int nDevices = 0;
-    for (address = 1; address < 127; address++)
+    uint8_t supportedSensors[] = {0x44, 0x76, 0x18, 0x58, 0x48, 0x77};
+    for (uint8_t index = 0; index < sizeof(supportedSensors); index++)
     {
         // The i2c_scanner uses the return value of
         // the Write.endTransmisstion to see if
         // a device did acknowledge the address.
-        Wire.beginTransmission(address);
+        Wire.beginTransmission(supportedSensors[index]);
         error = Wire.endTransmission();
         if (!error)
         {
 #ifdef DEBUG_SCAN
             Serial.printf("I2C device addr ");
-            if (address < 16)
+            if (supportedSensors[index] < 16)
                 Serial.print("0");
 
             Serial.print("  0x");
-            Serial.println(address, HEX);
+            Serial.println(supportedSensors[index], HEX);
 #endif
-            devices[myCnt].I2Caddr = address;
+
+        //    Serial.printf("valid sensor %x\n", supportedSensors[index]);
+            devices[myCnt].I2Caddr = supportedSensors[index];
             devices[myCnt].sca = portArray[i];
             devices[myCnt++].scl = portArray[j];
-
             nDevices++;
         }
         else if (error == 4)
@@ -422,4 +424,10 @@ String convert2hexAscii(unsigned char *iv)
 
     String returnString = hexAscii;
     return returnString;
+}
+
+void printDevice(int deviceNo)
+{
+    Serial.printf("I2c addr %x sca %d scl %d \n",
+                  devices[deviceNo].I2Caddr, devices[deviceNo].sca, devices[deviceNo].scl);
 }
