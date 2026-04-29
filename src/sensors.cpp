@@ -130,12 +130,6 @@ int configSensors(char *sensorName)
     }
 
     scanI2Cports();
-    // Wire.begin(5, 4);
-    // setWireBegin(0x57);
-    //   if (!pox.begin(PULSEOXIMETER_DEBUGGINGMODE_PULSEDETECT)) {
-    //     Serial.println("ERROR: Failed to initialize pulse oximeter");
-    //     for(;;);
-    // }
 
     setWireBegin(BMPX_ADDRESS);
     if (bmp3xx.begin_I2C(BMPX_ADDRESS))
@@ -332,7 +326,6 @@ void scanI2Cports()
                 Wire.begin(portArray[i], portArray[j]);
                 if (check_if_exist_I2C())
                 {
-// #define DEBUG_SCAN
 #ifdef DEBUG_SCAN
                     Serial.printf(" SDA %s(%d) SCL %s(%d) \n",
                                   portMap[i].c_str(), portArray[i], portMap[j].c_str(), portArray[j]);
@@ -365,7 +358,10 @@ void scanI2Cports()
  *   devices. Ensure these are properly defined and initialized in the global scope.
  * - The `portArray` array and `i`, `j` indices are used to associate I2C addresses with
  *   specific ports. Ensure these are defined and initialized appropriately.
+ *
+ *  NOTE: only tested 1 BMP280(0x77) didn't work not sure if code or bad sensor
  */
+// #define DEBUG_SCAN
 int check_if_exist_I2C()
 {
     byte error;
@@ -375,7 +371,7 @@ int check_if_exist_I2C()
     {
         // The i2c_scanner uses the return value of
         // the Write.endTransmisstion to see if
-        // a device did acknowledge the address.
+        // a device did acknowledge that address.
         Wire.beginTransmission(supportedSensors[index]);
         error = Wire.endTransmission();
         if (!error)
@@ -404,6 +400,9 @@ int check_if_exist_I2C()
             ESP.reset();
         }
     }
+    if (nDevices)
+        Serial.printf("# of sensors found %d\n", nDevices);
+        
     return nDevices;
 }
 // Looks up `addr` in the `devices` table and calls Wire.begin() with the
