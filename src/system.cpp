@@ -47,8 +47,8 @@ void performSystemTask(char *cmdFromClient)
         digitalWrite(D6, 0);
     else if (strstr(cmdFromClient, "RST"))
         ESP.reset();
-    else if (strstr(cmdFromClient, "NEW"))
-        int i = 0;
+    // else if (strstr(cmdFromClient, "NEW"))
+    //     int i = 0;
     else if (strstr(cmdFromClient, "CHG")) // change aes_key
     {
         // re-encrypting stored WiFi credentials with a newly generated AES key and saving them to the filesystem .
