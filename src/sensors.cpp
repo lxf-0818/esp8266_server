@@ -45,7 +45,7 @@
 #include <ArduinoJson.h>
 
 // #define DEBUG_SCAN
-//  #define NO_SOCKET_AES
+  #define SOCKET_AES
 
 #define SHT_ADDRESS 0x44
 #define BMx_ADDRESS 0x76
@@ -195,7 +195,7 @@ int configSensors(char *sensorName)
  * Notes:
  * - If no sensors are configured or available, the function sets `str` to "0".
  * - The function removes the trailing ",|," from the concatenated sensor data before processing.
- * - The encryption step is controlled by the `NO_SOCKET_AES` macro.
+ * - The encryption step is controlled by the `SOCKET_AES` macro.
  *
  * Example output format (unencrypted): `<CRC32>:<sensor_data>`
  * Example sensor data format: `<address>,<value1>,<value2>,|,`
@@ -279,21 +279,19 @@ void getSensorData(char *cmd, char *str)
     }
 
     sensorsData = sensorsData.substring(0, sensorsData.length() - 3); // remove the last ",|,"
-#ifndef NO_SOCKET_AES
+    //Serial.printf("sensor data %s\n", sensorsData.c_str());
+#ifdef SOCKET_AES
+    // only the payload gets encrypted  
     encrypt_stub((char *)sensorsData.c_str(), tmp);
 #else
     strcpy(tmp, sensorsData.c_str());
 #endif
     uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
     uint32_t calcCRC = calcCRC32(data, strlen(tmp));
-#ifndef NO_SOCKET_AES
-
     String iv = convert2hexAscii(aes_iv);
-    sprintf(str, "%x:%s:%s", calcCRC, tmp, iv.c_str());
-#else
     bzero(str, 512);
-    sprintf(str, "%x:%s", calcCRC, sensorsData.c_str());
-#endif
+    sprintf(str, "%x:%s:%s", calcCRC, tmp, iv.c_str());
+    
 }
 
 /**
@@ -437,6 +435,6 @@ String convert2hexAscii(unsigned char *iv)
 // Prints the I2C address, SDA, and SCL pin values for `deviceNo` to Serial.
 void printDevice(int deviceNo)
 {
-    Serial.printf("I2c addr %x sca %d(%s) scl %d(%s)  \n",
+    Serial.printf("I2c addr 0x%x sca %d(%s) scl %d(%s)  \n",
                   devices[deviceNo].I2Caddr, devices[deviceNo].sca,devices[deviceNo].scaPin, devices[deviceNo].scl,devices[deviceNo].sclPin);
 }

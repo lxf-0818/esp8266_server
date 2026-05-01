@@ -29,7 +29,7 @@ Brute-force scans all distinct SDA/SCL pairs from:
 - pins: `16,5,4,0,2,14,12,13`
 
 Note : Using a brute-force scan design, avoids building a long chain of nested if then else cases for every possible pin combination. That keeps the logic simpler, easier to maintain, and easier to extend if the supported pin set changes later. Another benefit is that the user does not have to be concerned about the exact SDA/SCL pin pairing , can use any pin pair from  D0-7
-                      address 0x77 sca 5 scl 4
+                      I2c addr 0x76 sca 5(D1) scl 13(D7)   
 
 Each pair runs `check_if_exist_I2C()`.
 
