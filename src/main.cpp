@@ -63,6 +63,7 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #define DEVICES 5
+#include <SimpleFTPServer.h>
 char results[512];
 int configSensors(char *sensorName);
 void encrypt_stub(char *str, char *str2);
@@ -71,6 +72,8 @@ int beginWIFI(String sensorName);
 void performSystemTask(char *cmdFromClient);
 void printDevice(int deviceNo);
 void IRAM_ATTR isr();
+void initFz();
+FtpServer ftpSrv; // set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
 WiFiClient client;
@@ -89,16 +92,17 @@ void setup()
 
     server.begin();
     beginWIFI(sensorName);
-  }
-  else
-  {
+    initFz();
+}
+else
+{
 
-    Serial.println("\n No Valid Sensor Found check wiring");
-  }
+  Serial.println("\n No Valid Sensor Found check wiring");
+}
 
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(D6, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
+pinMode(LED_BUILTIN, OUTPUT);
+pinMode(D6, INPUT_PULLUP);
+attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
 }
 /**
  * @brief Main loop function to handle client-server communication.
@@ -128,6 +132,7 @@ void setup()
  */
 void loop()
 {
+  ftpSrv.handleFTP(); // make sure in loop you call handleFTP()!!
 
   unsigned j = 0;
   client = server.accept(); //
@@ -171,7 +176,7 @@ void loop()
     }
     client.print(results);
     client.stop();
-    Serial.println(results);
+    // Serial.println(results);
 
   } // end if client
 } //
