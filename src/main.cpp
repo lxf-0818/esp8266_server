@@ -22,20 +22,26 @@
  * - PORT: The port number the server listens on (default: 8888).
  *
  * @functions
- * - configSensors(char *sensorName): Configures sensors and returns the count of detected sensors.
+ * - setup(): Detects sensors, starts the TCP server, connects to Wi-Fi, starts FTP and ElegantOTA.
+ * - loop(): Accepts TCP clients, dispatches ALL/non-ALL commands, handles timeout and response.
+ * - configSensors(char *sensorName): Probes I2C/1-Wire bus and populates sensorName tag string; returns sensor count.
  * - printDevice(int deviceNo): Prints I2C address and pin info for a detected sensor to Serial.
  * - encrypt_stub(char *str, char *str2): Wrapper to AES-encrypt a string (defined in login.cpp).
- * - getSensorData(char *cmdFromClient, char *str): Retrieves sensor data based on client commands.
- * - beginWIFI(String sensorName): Initializes WiFi connection with the given sensor name.
- * - performSystemTask(char *cmdFromClient): Executes system tasks based on client commands.
+ * - getSensorData(char *cmdFromClient, char *str): Builds sensor payload for ALL command into str.
+ * - beginWIFI(String sensorName): Connects to Wi-Fi and registers device with the HTTP back-end.
+ * - performSystemTask(char *cmdFromClient): Executes BLK/OTA/system tasks based on client command.
+ * - initFz(): Initialises the FTP server credentials and begins serving.
+ * - isr(): GPIO interrupt handler — blinks LED_BUILTIN once (reserved for future use).
  *
  * @variables
- * - server: WiFiServer instance for handling client connections.
- * - client: WiFiClient instance representing the connected client.
- * - cmdFromClient[80]: Buffer to store commands received from the client.
- * - sensorName[100]: Buffer to store the detected sensor tag list (e.g. BMX_ADC).
- * - results[512]: Response payload buffer sent back to the client.
- * - str[80], Buf[80]: Reserved local buffers (currently unused in loop).
+ * - server: WiFiServer instance listening on PORT 8888.
+ * - serverAsyn: ESPAsyncWebServer on port 80; hosts ElegantOTA update endpoint.
+ * - ftpSrv: FtpServer instance for file transfer access.
+ * - client: WiFiClient instance representing the currently connected TCP client.
+ * - cmdFromClient[80]: Buffer for the command received from the client (force-uppercased).
+ * - sensorName[100]: Null-terminated tag string of all detected sensors (e.g. "BMX_ADC").
+ * - results[512]: Response payload assembled per request and sent back to the client.
+ * - str[80], Buf[80]: Reserved local scratch buffers.
  *
  * @usage
  * - Upload this code to an ESP8266 microcontroller.
@@ -85,6 +91,19 @@ WiFiClient client;
 AsyncWebServer serverAsyn(80);
 
 char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
+/**
+ * @brief One-time initialisation for the ESP8266 server.
+ *
+ * Execution order:
+ * 1. Opens Serial at 115200 baud.
+ * 2. Calls configSensors() to probe the bus; aborts with an error message if no sensor is found.
+ * 3. Calls printDevice() for each detected sensor.
+ * 4. Starts the TCP server on PORT (8888).
+ * 5. Calls beginWIFI() to connect to Wi-Fi and register the device with the HTTP back-end.
+ * 6. Calls initFz() to start the FTP server.
+ * 7. Starts ESPAsyncWebServer on port 80 and attaches ElegantOTA.
+ * 8. Configures LED_BUILTIN as output (interrupt pin D6 is reserved but currently disabled).
+ */
 void setup()
 {
 
@@ -193,6 +212,13 @@ void loop()
 
   } // end if client
 } //
+/**
+ * @brief GPIO interrupt service routine (reserved for future use).
+ *
+ * Placed in IRAM via ICACHE_RAM_ATTR. Currently blinks LED_BUILTIN once (500 ms on/off)
+ * and prints "in isr" to Serial. The triggering pin (D6, CHANGE) is configured but
+ * the attachInterrupt() call is commented out in setup().
+ */
 void ICACHE_RAM_ATTR isr()
 {
 
