@@ -228,12 +228,11 @@ void getSensorData(char *cmd, char *str)
         sprintf(str, "%x,%f,%f,%f,|,", BMx_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
-        //  Serial.printf("bme config %s\n",str);
         deviceCnt++;
     }
     if (BMP_CNFG)
     {
-        if (setWireBegin(BMP280_CHIPID))
+        if (setWireBegin(BMx_ADDRESS))
         {
             sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
                     bmp.readAltitude(SEALEVELPRESSURE_HPA));
