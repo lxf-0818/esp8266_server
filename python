@@ -1,0 +1,23 @@
+import requests
+
+# List of your ESP devices' IP addresses
+devices = ["192.168.1.50", "192.168.1.51", "192.168.1.52"]
+binary_path = "firmware.bin"
+
+def upload_firmware(ip, file_path):
+    url = f"http://{ip}/update"
+    try:
+        print(f"Uploading to {ip}...")
+        with open(file_path, 'rb') as f:
+            response = requests.post(url, files={'firmware': f})
+        
+        if response.status_code == 200:
+            print(f"✅ Success: {ip}")
+        else:
+            print(f"❌ Failed: {ip} - Status: {response.status_code}")
+    except Exception as e:
+        print(f"⚠️ Error with {ip}: {e}")
+
+# Automate loop
+for device_ip in devices:
+    upload_firmware(device_ip, binary_path)

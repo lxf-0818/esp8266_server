@@ -61,9 +61,14 @@
  *     b182b3d0:2dc8Pdrfuqc+eaWr7OdjkXhcX8QVajxeX6plkCf96bY=
  */
 #include <Arduino.h>
+#define ELEGANTOTA_USE_ASYNC_WEBSERVER 1
 #include <ESP8266WiFi.h>
 #define DEVICES 5
 #include <SimpleFTPServer.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <ElegantOTA.h>
+
 char results[512];
 int configSensors(char *sensorName);
 void encrypt_stub(char *str, char *str2);
@@ -77,6 +82,8 @@ FtpServer ftpSrv; // set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verb
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
 WiFiClient client;
+AsyncWebServer serverAsyn(80);
+
 char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
 void setup()
 {
@@ -93,16 +100,21 @@ void setup()
     server.begin();
     beginWIFI(sensorName);
     initFz();
-}
-else
-{
+    //   serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
+    //   request->send(200, "text/plain", "Hi! I am ESP8266.");
+    // });
+    serverAsyn.begin();
+    ElegantOTA.begin(&serverAsyn); // Start ElegantOTA
+  }
+  else
+  {
 
-  Serial.println("\n No Valid Sensor Found check wiring");
-}
+    Serial.println("\n No Valid Sensor Found check wiring");
+  }
 
-pinMode(LED_BUILTIN, OUTPUT);
-// pinMode(D6, INPUT_PULLUP);
-// attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
+  pinMode(LED_BUILTIN, OUTPUT);
+  // pinMode(D6, INPUT_PULLUP);
+  // attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
 }
 /**
  * @brief Main loop function to handle client-server communication.
@@ -133,6 +145,7 @@ pinMode(LED_BUILTIN, OUTPUT);
 void loop()
 {
   ftpSrv.handleFTP(); // make sure in loop you call handleFTP()!!
+  ElegantOTA.loop();
 
   unsigned j = 0;
   client = server.accept(); //
