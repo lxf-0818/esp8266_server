@@ -101,8 +101,8 @@ else
 }
 
 pinMode(LED_BUILTIN, OUTPUT);
-pinMode(D6, INPUT_PULLUP);
-attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
+// pinMode(D6, INPUT_PULLUP);
+// attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
 }
 /**
  * @brief Main loop function to handle client-server communication.

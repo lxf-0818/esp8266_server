@@ -21,6 +21,7 @@
 #include <Arduino.h>
 #include <AESLib.h>
 #include <ESP8266WiFi.h>
+void blkMe();
 
 int beginWIFI(String sensorName);
 //void convert_ivs_to_hex();
@@ -43,8 +44,10 @@ void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], cha
 void performSystemTask(char *cmdFromClient)
 {
 
-    if (strstr(cmdFromClient, "BLK"))
-        digitalWrite(D6, 0);
+    Serial.printf("cmd recieved:%s\n",cmdFromClient);
+
+    if (strstr(cmdFromClient, "BLK")) 
+         blkMe();
     else if (strstr(cmdFromClient, "RST"))
         ESP.reset();
     // else if (strstr(cmdFromClient, "NEW"))
@@ -84,20 +87,12 @@ void performSystemTask(char *cmdFromClient)
         //      strcpy(results, "failed to update");
     }
 }
-// void convert_ivs_to_hex() {
-//     // 1. Example IVs (16 bytes each)
-//     //0102030405060708090a0b0c0d0e0f10
-//     unsigned char iv[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
-
-//     unsigned char iv_copy[16];
-//     memcpy(iv_copy, iv, 16);
-
-//     // 3. Convert to Hex String (16 bytes * 2 chars + null terminator)
-//     char hexAscii[33]; 
-//     for (int i = 0; i < 32; i++) {
-//         sprintf(hexAscii + (i * 2), "%02x", iv_copy[i]);
-//     }
-//     hexAscii[32] = '\0';
-
-//     printf("Hex String: %s\n", hexAscii);
-// }
+void blkMe(){
+    for (int i = 0; i < 5; i++)
+  {
+    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
+    delay(500);                      // Wait for a second
+    digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH47
+    delay(500);
+  }
+}
