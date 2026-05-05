@@ -45,7 +45,7 @@
 #include <ArduinoJson.h>
 
 // #define DEBUG_SCAN
-  #define SOCKET_AES
+#define SOCKET_AES
 
 #define SHT_ADDRESS 0x44
 #define BMx_ADDRESS 0x76
@@ -90,7 +90,6 @@ struct I2C
     char sclPin[3];
     int sca;
     char scaPin[3];
-
 };
 struct I2C devices[DEVICES];
 
@@ -213,36 +212,31 @@ void getSensorData(char *cmd, char *str)
     String sensorsData;
     int deviceCnt = 0;
 
-    if (BMX_CNFG)
+    if (BMX_CNFG && setWireBegin(BMPX_ADDRESS))
     {
-        setWireBegin(BMPX_ADDRESS);
         sprintf(str, "%x,%f,%f,|,", BMPX_ADDRESS,
                 bmp3xx.readTemperature() * 1.8 + 32,
                 bmp3xx.readPressure() / 100);
         sensorsData.concat(str);
         deviceCnt++;
     }
-    if (BME_CNFG)
+    if (BME_CNFG && setWireBegin(BMPX_ADDRESS))
     {
-        setWireBegin(BMx_ADDRESS);
         sprintf(str, "%x,%f,%f,%f,|,", BMx_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
     }
-    if (BMP_CNFG)
+    if (BMP_CNFG && setWireBegin(BMx_ADDRESS))
     {
-        if (setWireBegin(BMx_ADDRESS))
-        {
-            sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
-                    bmp.readAltitude(SEALEVELPRESSURE_HPA));
-            sensorsData.concat(str);
-            deviceCnt++;
-        }
+
+        sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
+                bmp.readAltitude(SEALEVELPRESSURE_HPA));
+        sensorsData.concat(str);
+        deviceCnt++;
     }
-    if (SHT_CNFG)
+    if (SHT_CNFG && setWireBegin(SHT_ADDRESS))
     {
-        setWireBegin(SHT_ADDRESS);
         if (sht.dataReady())
         {
             sht.read(); // default = true/fast       slow = false
@@ -253,10 +247,9 @@ void getSensorData(char *cmd, char *str)
         else
             strcpy(str, "SHT data not ready");
     }
-    if (ADC_CNFG)
+    if (ADC_CNFG & setWireBegin(ADC_ADDRESS))  
     {
         float rRatio = 5.63; // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
-        setWireBegin(ADC_ADDRESS);
         float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
         sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1, rRatio);
@@ -264,7 +257,7 @@ void getSensorData(char *cmd, char *str)
         sensorsData.concat(str);
         deviceCnt++;
     }
-    if (DS1_CNFG)
+    if (DS1_CNFG)  // 1-wire device
     {
         readTemp(str);
         sensorsData.concat(str);
@@ -278,9 +271,9 @@ void getSensorData(char *cmd, char *str)
     }
 
     sensorsData = sensorsData.substring(0, sensorsData.length() - 3); // remove the last ",|,"
-    //Serial.printf("sensor data %s\n", sensorsData.c_str());
+    // Serial.printf("sensor data %s\n", sensorsData.c_str());
 #ifdef SOCKET_AES
-    // only the payload gets encrypted  
+    // only the payload gets encrypted
     encrypt_stub((char *)sensorsData.c_str(), tmp);
 #else
     strcpy(tmp, sensorsData.c_str());
@@ -290,7 +283,6 @@ void getSensorData(char *cmd, char *str)
     String iv = convert2hexAscii(aes_iv);
     bzero(str, 512);
     sprintf(str, "%x:%s:%s", calcCRC, tmp, iv.c_str());
-    
 }
 
 /**
@@ -385,8 +377,8 @@ int check_if_exist_I2C()
             //    Serial.printf("valid sensor %x\n", supportedSensors[index]);
             devices[myCnt].I2Caddr = supportedSensors[index];
             devices[myCnt].sca = portArray[i];
-            strcpy(devices[myCnt].scaPin ,portMap[i].c_str());
-            strcpy(devices[myCnt].sclPin ,portMap[j].c_str());
+            strcpy(devices[myCnt].scaPin, portMap[i].c_str());
+            strcpy(devices[myCnt].sclPin, portMap[j].c_str());
             devices[myCnt++].scl = portArray[j];
 
             nDevices++;
@@ -399,7 +391,7 @@ int check_if_exist_I2C()
     }
     if (nDevices)
         Serial.printf("# of sensors found %d\n", nDevices);
-        
+
     return nDevices;
 }
 // Looks up `addr` in the `devices` table and calls Wire.begin() with the
@@ -435,5 +427,5 @@ String convert2hexAscii(unsigned char *iv)
 void printDevice(int deviceNo)
 {
     Serial.printf("I2c addr 0x%x sca %d(%s) scl %d(%s)  \n",
-                  devices[deviceNo].I2Caddr, devices[deviceNo].sca,devices[deviceNo].scaPin, devices[deviceNo].scl,devices[deviceNo].sclPin);
+                  devices[deviceNo].I2Caddr, devices[deviceNo].sca, devices[deviceNo].scaPin, devices[deviceNo].scl, devices[deviceNo].sclPin);
 }
