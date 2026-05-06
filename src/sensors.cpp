@@ -3,15 +3,15 @@
  * @brief This file contains the implementation of sensor configuration, initialization,
  *        and data retrieval for various I2C and OneWire sensors connected to an ESP8266.
  *
- * The code supports multiple sensors, including BMP3XX, BME280, BMP280, SHT85, ADS1115,
+ * The code supports multiple sensors, including BMP3XX, BME280, BMP280, SHT35, ADS1115,
  * and DS18B20. It provides functionality to scan I2C ports, initialize sensors, and
  * retrieve sensor data in a formatted string.
  *
  * @details
  * - The `configSensors` function initializes the sensors and builds a list of detected
  *   sensors.
- * - The `getSensorData` function retrieves data from the configured sensors and formats
- *   it into a string with CRC32 checksum.
+ * - The `getSensorData` function retrieves data from configured sensors, optionally AES-encrypts
+ *   the payload, calculates CRC32 over the transmitted payload, and appends the IV.
  * - The `scanI2Cports` function scans all possible I2C port combinations to detect connected
  *   devices.
  * - The `check_if_exist_I2C` function checks for the presence of I2C devices on the bus.
@@ -177,8 +177,8 @@ int configSensors(char *sensorName)
 }
 
 /**
- * @brief Collects sensor data from various configured sensors, formats the data,
- *        calculates a CRC32 checksum, and optionally encrypts the result.
+ * @brief Collects sensor data from configured sensors, optionally encrypts it,
+ *        computes CRC32, and emits payload plus IV.
  *
  * @param cmd Unused parameter, reserved for future use.
  * @param str Pointer to a character buffer where the resulting data or error message will be stored.
@@ -187,16 +187,18 @@ int configSensors(char *sensorName)
  * 1. Checks the configuration flags for each sensor type (e.g., BMX, BME, BMP, SHT, ADC, DS1).
  * 2. Reads data from the corresponding sensors if they are configured and available.
  * 3. Formats the sensor data into a specific string format and concatenates it.
- * 4. Calculates a CRC32 checksum for the concatenated sensor data.
- * 5. Optionally encrypts the resulting string if encryption is enabled.
- * 6. Stores the final result in the provided `str` buffer.
+ * 4. Optionally encrypts the concatenated sensor string when SOCKET_AES is enabled.
+ * 5. Calculates a CRC32 checksum of the outgoing payload (`tmp`), encrypted or plain.
+ * 6. Appends the active AES IV as a hex-comma string and stores final output in `str`.
  *
  * Notes:
- * - If no sensors are configured or available, the function sets `str` to "0".
+ * - If no sensors are configured or available, the function sets `str` to "no sensors found".
  * - The function removes the trailing ",|," from the concatenated sensor data before processing.
  * - The encryption step is controlled by the `SOCKET_AES` macro.
+ * - The returned frame format is always `<CRC32_HEX>:<ciphertext>:<iv_hex_csv>`.
  *
- * Example output format (unencrypted): `<CRC32>:<sensor_data>`
+ * Example output format (unencrypted): `<CRC32>:<sensor_data>:<iv_hex_csv>`
+ * Example output format (encrypted): `<CRC32>:<base64_aes_payload>:<iv_hex_csv>`
  * Example sensor data format: `<address>,<value1>,<value2>,|,`
  *
  * Dependencies:
@@ -247,9 +249,9 @@ void getSensorData(char *cmd, char *str)
         else
             strcpy(str, "SHT data not ready");
     }
-    if (ADC_CNFG & setWireBegin(ADC_ADDRESS))  
+    if (ADC_CNFG & setWireBegin(ADC_ADDRESS))
     {
-        float rRatio = 5.63; // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
+        float rRatio = 5.63;                                         // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
         float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
         sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1, rRatio);
@@ -257,7 +259,7 @@ void getSensorData(char *cmd, char *str)
         sensorsData.concat(str);
         deviceCnt++;
     }
-    if (DS1_CNFG)  // 1-wire device
+    if (DS1_CNFG) // 1-wire device
     {
         readTemp(str);
         sensorsData.concat(str);
@@ -278,11 +280,15 @@ void getSensorData(char *cmd, char *str)
 #else
     strcpy(tmp, sensorsData.c_str());
 #endif
-    uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
-    uint32_t calcCRC = calcCRC32(data, strlen(tmp));
-    String iv = convert2hexAscii(aes_iv);
+    //uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
+    uint32_t calcCRC = calcCRC32((uint8_t *)&tmp, strlen(tmp));
+#ifdef SOCKET_AES
+String iv = convert2hexAscii(aes_iv);
     bzero(str, 512);
     sprintf(str, "%x:%s:%s", calcCRC, tmp, iv.c_str());
+#else
+    sprintf(str, "%x:%s", calcCRC, tmp);
+#endif
 }
 
 /**
@@ -301,8 +307,8 @@ void getSensorData(char *cmd, char *str)
  * @note The portArray and portMap arrays, as well as the check_if_exist_I2C()
  *       function, must be defined elsewhere in the program.
  *
- * @warning Ensure that the size of portArray is correctly calculated, as
- *          sizeof(portArray) may not work as expected if portArray is a pointer.
+ * @warning This implementation assumes `portArray` remains a fixed local array.
+ *          If converted to a pointer, the `sizeof(portArray)` loops must be rewritten.
  */
 void scanI2Cports()
 {
@@ -409,6 +415,7 @@ int setWireBegin(int addr)
             return 1;
         }
     }
+    
     return 0;
 }
 String convert2hexAscii(unsigned char *iv)

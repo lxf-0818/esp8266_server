@@ -74,8 +74,9 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <ElegantOTA.h>
+#include "time.h"
 
-char results[512];
+char results[512], buildTime[20];
 int configSensors(char *sensorName);
 void encrypt_stub(char *str, char *str2);
 void getSensorData(char *cmdFromClient, char *str);
@@ -84,6 +85,8 @@ void performSystemTask(char *cmdFromClient);
 void printDevice(int deviceNo);
 void IRAM_ATTR isr();
 void initFz();
+void getBuildTime(char *lastBook);
+
 FtpServer ftpSrv; // set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
@@ -119,11 +122,12 @@ void setup()
     server.begin();
     beginWIFI(sensorName);
     initFz();
-    //   serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
-    //   request->send(200, "text/plain", "Hi! I am ESP8266.");
-    // });
+
+    getBuildTime(buildTime);
+    serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(200, "text/plain", "Hi! I am ESP8266."); });
     serverAsyn.begin();
-    ElegantOTA.begin(&serverAsyn); // Start ElegantOTA
+    ElegantOTA.begin(&serverAsyn);
   }
   else
   {
@@ -208,7 +212,7 @@ void loop()
     }
     client.print(results);
     client.stop();
-    // Serial.println(results);
+    Serial.println(results);
 
   } // end if client
 } //
@@ -230,4 +234,35 @@ void ICACHE_RAM_ATTR isr()
     delay(500);
   }
   Serial.println("in isr");
+}
+
+void getBuildTime(char *buildTime)
+{
+  const char *ntpServer = "pool.ntp.org";
+  const long gmtOffset_sec = -18000;
+  const int daylightOffset_sec = 3600;
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  struct tm timeinfo;
+
+  int retries = 3;
+
+  while (retries--)
+  {
+    if (!getLocalTime(&timeinfo))
+    {
+      // strncpy(buildTime, FAILED_TO_OBTAIN_TIME, strlen(FAILED_TO_OBTAIN_TIME) + 1);
+      Serial.printf("Failed to obtain time retry: %d\n", 3 - retries);
+    }
+    else
+    {
+      int hr = timeinfo.tm_hour;
+
+      snprintf(buildTime, 64, "%d/%d/%d %d:%02d ",
+               timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_year + 1900,
+               hr, timeinfo.tm_min);
+      // Serial.printf("string length %d  %d \n",strlen(buildTime),cnt);
+      break;
+    }
+  }
+  Serial.printf("Boot time: %s\n", buildTime);
 }

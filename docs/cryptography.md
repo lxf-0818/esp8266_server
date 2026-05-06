@@ -3,7 +3,7 @@
 ## Purpose
 Provides AES-128-CBC encrypt/decrypt helpers and LittleFS I/O utilities used
 across the firmware:
-- initialise AES library (padding mode)
+- initialise AES library (padding mode 0)
 - encrypt plaintext to base64-encoded ciphertext
 - decrypt base64-encoded ciphertext to plaintext
 - read and parse comma-separated hex key/IV files from LittleFS
