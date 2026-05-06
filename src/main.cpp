@@ -70,10 +70,10 @@
 #define ELEGANTOTA_USE_ASYNC_WEBSERVER 1
 #include <ESP8266WiFi.h>
 #define DEVICES 5
-#include <SimpleFTPServer.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <ElegantOTA.h>
+// #include <SimpleFTPServer.h>
+// #include <ESPAsyncTCP.h>
+// #include <ESPAsyncWebServer.h>
+// #include <ElegantOTA.h>
 #include "time.h"
 
 char results[512], buildTime[20];
@@ -87,11 +87,11 @@ void IRAM_ATTR isr();
 void initFz();
 void getBuildTime(char *lastBook);
 
-FtpServer ftpSrv; // set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
+//FtpServer ftpSrv; // set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
 WiFiClient client;
-AsyncWebServer serverAsyn(80);
+//AsyncWebServer serverAsyn(80);
 
 char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
 /**
@@ -121,13 +121,13 @@ void setup()
 
     server.begin();
     beginWIFI(sensorName);
-    initFz();
+    //initFz();
 
-    getBuildTime(buildTime);
-    serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(200, "text/plain", "Hi! I am ESP8266."); });
-    serverAsyn.begin();
-    ElegantOTA.begin(&serverAsyn);
+    //getBuildTime(buildTime);
+    //serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request)
+    //              { request->send(200, "text/plain", "Hi! I am ESP8266."); });
+    //serverAsyn.begin();
+    //ElegantOTA.begin(&serverAsyn);
   }
   else
   {
@@ -167,8 +167,8 @@ void setup()
  */
 void loop()
 {
-  ftpSrv.handleFTP(); // make sure in loop you call handleFTP()!!
-  ElegantOTA.loop();
+  //ftpSrv.handleFTP(); // make sure in loop you call handleFTP()!!
+  //ElegantOTA.loop();
 
   unsigned j = 0;
   client = server.accept(); //

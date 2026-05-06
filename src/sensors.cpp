@@ -222,13 +222,14 @@ void getSensorData(char *cmd, char *str)
         sensorsData.concat(str);
         deviceCnt++;
     }
-    if (BME_CNFG && setWireBegin(BMPX_ADDRESS))
+    if (BME_CNFG && setWireBegin(BMx_ADDRESS))
     {
         sprintf(str, "%x,%f,%f,%f,|,", BMx_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
     }
+    
     if (BMP_CNFG && setWireBegin(BMx_ADDRESS))
     {
 
@@ -415,7 +416,7 @@ int setWireBegin(int addr)
             return 1;
         }
     }
-    
+
     return 0;
 }
 String convert2hexAscii(unsigned char *iv)
