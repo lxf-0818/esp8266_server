@@ -220,7 +220,7 @@ void loop()
  * @brief GPIO interrupt service routine (reserved for future use).
  *
  * Placed in IRAM via ICACHE_RAM_ATTR. Currently blinks LED_BUILTIN once (500 ms on/off)
- * and prints "in isr" to Serial. The triggering pin (D6, CHANGE) is configured but
+ * a nd prints "in isr" to Serial. The triggering pin (D6, CHANGE) is configured but
  * the attachInterrupt() call is commented out in setup().
  */
 void ICACHE_RAM_ATTR isr()

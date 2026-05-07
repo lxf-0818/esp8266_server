@@ -55,9 +55,9 @@ Sensor enable flags are persisted in `*_CNFG` globals and consumed by `getSensor
 Output format:
 - AES enabled (default): `<crc32_hex>:<ciphertext>:<iv_hex_csv>`.
   - IV is appended as 16 comma-separated two-digit hex bytes (e.g. `a1,b2,...,ff`).
-- `NO_SOCKET_AES` build: `<crc32_hex>:<plaintext>`.
+- `SOCKET_AE` build: `<crc32_hex>:<plaintext>`.
 
-CRC is calculated over the post-encryption ciphertext (`tmp`) in AES mode, and over the plaintext in `NO_SOCKET_AES` mode.
+CRC is calculated over the post-encryption ciphertext (`tmp`) in AES mode, and over the plaintext in `SOCKET_AE` mode.
 
 ## Per-Sensor Row Formats
 - BMP3XX: `77,<temp_f>,<pressure_hpa>,|,`
@@ -70,7 +70,7 @@ CRC is calculated over the post-encryption ciphertext (`tmp`) in AES mode, and o
 
 ## Compile Flags
 - `DEBUG_SCAN`: enables verbose scan logs; currently **enabled** via `#define DEBUG_SCAN` inside `scanI2Cports()` (local definition).
-- `NO_SOCKET_AES`: disables socket encryption path when uncommented.
+- `SOCKET_AE`: disables socket encryption path when uncommented.
 
 ## Helper Functions
 

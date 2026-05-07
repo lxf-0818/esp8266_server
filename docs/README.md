@@ -26,7 +26,7 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 - Sensor read command: `ALL` (case-insensitive — received command is uppercased)
 - Control commands: `BLK`, `RST` (handled by `performSystemTask()`)
 - Sensor response format (AES on): `<crc32_hex>:<ciphertext>:<iv_hex_csv>`
-- Sensor response format (`NO_SOCKET_AES`): `<crc32_hex>:<plaintext>`
+- Sensor response format (`SOCKET_AE`): `<crc32_hex>:<plaintext>`
 - Non-`ALL` response format: `<cmd>_<server_IPv4>`
 
 ## Runtime Sequence
@@ -39,5 +39,5 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 7. Otherwise: returns `<cmd>_<server_IP>` and calls `performSystemTask()`.
 
 ## Notes
-- Socket payload may be AES/base64 encrypted depending on compile flags (`NO_SOCKET_AES`).
+- Socket payload may be AES/base64 encrypted depending on compile flags (`SOCKET_AE`).
 - ISR (`isr()`) attached to `D6` on `CHANGE` edge: blinks `LED_BUILTIN` once and prints to Serial. Serial and `delay()` in ISR context are unsafe and intended for testing only.
