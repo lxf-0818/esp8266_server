@@ -36,7 +36,6 @@
  * @variables
  * - server: WiFiServer instance listening on PORT 8888.
  * - serverAsyn: ESPAsyncWebServer on port 80; hosts ElegantOTA update endpoint.
- * - ftpSrv: FtpServer instance for file transfer access.
  * - client: WiFiClient instance representing the currently connected TCP client.
  * - cmdFromClient[80]: Buffer for the command received from the client (force-uppercased).
  * - sensorName[100]: Null-terminated tag string of all detected sensors (e.g. "BMX_ADC").
@@ -70,11 +69,11 @@
 #define ELEGANTOTA_USE_ASYNC_WEBSERVER 1
 #include <ESP8266WiFi.h>
 #define DEVICES 5
-// #include <SimpleFTPServer.h>
-// #include <ESPAsyncTCP.h>
-// #include <ESPAsyncWebServer.h>
-// #include <ElegantOTA.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <ElegantOTA.h>
 #include "time.h"
+
 
 char results[512], buildTime[20];
 int configSensors(char *sensorName);
@@ -84,14 +83,12 @@ int beginWIFI(String sensorName);
 void performSystemTask(char *cmdFromClient);
 void printDevice(int deviceNo);
 void IRAM_ATTR isr();
-void initFz();
 void getBuildTime(char *lastBook);
 
-//FtpServer ftpSrv; // set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
 WiFiClient client;
-//AsyncWebServer serverAsyn(80);
+AsyncWebServer serverAsyn(80);
 
 char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
 /**
@@ -109,10 +106,13 @@ char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
  */
 void setup()
 {
+  pinMode(LED_BUILTIN, OUTPUT);
 
   int cnt = 0;
   Serial.begin(115200);
   Serial.println("");
+  digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
+
   cnt = configSensors(sensorName);
   if (cnt > 0)
   {
@@ -121,13 +121,12 @@ void setup()
 
     server.begin();
     beginWIFI(sensorName);
-    //initFz();
 
-    //getBuildTime(buildTime);
-    //serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request)
-    //              { request->send(200, "text/plain", "Hi! I am ESP8266."); });
-    //serverAsyn.begin();
-    //ElegantOTA.begin(&serverAsyn);
+    // getBuildTime(buildTime);
+    serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(200, "text/plain", "Hi! I am ESP8266."); });
+    serverAsyn.begin();
+    ElegantOTA.begin(&serverAsyn);
   }
   else
   {
@@ -135,7 +134,7 @@ void setup()
     Serial.println("\n No Valid Sensor Found check wiring");
   }
 
-  pinMode(LED_BUILTIN, OUTPUT);
+
   // pinMode(D6, INPUT_PULLUP);
   // attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
 }
@@ -167,8 +166,7 @@ void setup()
  */
 void loop()
 {
-  //ftpSrv.handleFTP(); // make sure in loop you call handleFTP()!!
-  //ElegantOTA.loop();
+  ElegantOTA.loop();
 
   unsigned j = 0;
   client = server.accept(); //

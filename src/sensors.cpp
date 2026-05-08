@@ -43,6 +43,7 @@
 #include <AESLib.h>
 #include <CRC.h>
 #include <ArduinoJson.h>
+#include <map>
 
 // #define DEBUG_SCAN
 #define SOCKET_AES
