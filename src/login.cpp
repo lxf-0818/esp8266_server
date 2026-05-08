@@ -22,7 +22,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <Adafruit_SSD1306.h>
-
+#include <map>
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
@@ -36,6 +36,15 @@ void upDateDB(String sensorName);
 String performHttpGet(const char *url);
 void conver2hexAscii(unsigned char *iv);
 int writeLittle(char *fileName, const char *message);
+const std::map<String, String> locMap =
+      {
+          {"192.168.1.3", "Master Bedroom"},
+          {"192.168.1.6", "Guest Bedroom"},
+          {"192.168.1.4", "Mud Room"},
+          {"192.168.1.10", "Laundry Room"},
+          {"192.168.1.13", "Main Room"},
+
+        };
 
 
 int beginWIFI(String sensorName)
@@ -47,7 +56,7 @@ int beginWIFI(String sensorName)
 
   if (readEncyptWifiCredentials(cssid_psw))
     ESP.restart();
-  
+
   temp = cssid_psw;
   int index = temp.indexOf(":"); // get eos token
   ssid = temp.substring(0, index);
@@ -97,11 +106,10 @@ int beginWIFI(String sensorName)
   String IP = WiFi.localIP().toString();
   String phpScript = "http://192.168.1.252/deleteIP.php?key=" + (String)IP;
   performHttpGet(phpScript.c_str());
-  upDateDB(sensorName); 
+  upDateDB(sensorName);
 
   return 0;
 }
-
 
 /**
  * @brief Sends an HTTP POST request to update the database with sensor and device information.
@@ -133,21 +141,26 @@ void upDateDB(String sensorName)
   IP = WiFi.localIP().toString();
   apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
 
-  httpRequestData = "api_key=" + apiKeyValue;
-  httpRequestData += "&board=esp8266";
-  httpRequestData += "&location=" + sensorLocation;
-  httpRequestData += "&IPv4Address=" + IP;
-  httpRequestData += "&macAddress=" + (String)macAddr;
-  httpRequestData += "&sensor=" + sensorName;
-  serverName = "http://192.168.1.252/saveIP.php";
-  http.begin(client_sql, serverName.c_str());
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  // delay(500);
-  int httpResponseCode = http.POST(httpRequestData);
-  payload = http.getString();
-  Serial.printf("http rc %d payload %s \n\t %s\n", httpResponseCode, payload.c_str(), httpRequestData.c_str());
-  http.end();
-  return;
+  for (const auto &pair : locMap) {
+    Serial.printf("1st %s 2nd %s\n", pair.first.c_str(), pair.second.c_str());
+    if (pair.first == IP)
+      sensorLocation = pair.second;
+     }
+    httpRequestData = "api_key=" + apiKeyValue;
+    httpRequestData += "&board=esp8266";
+    httpRequestData += "&location=" + sensorLocation;
+    httpRequestData += "&IPv4Address=" + IP;
+    httpRequestData += "&macAddress=" + (String)macAddr;
+    httpRequestData += "&sensor=" + sensorName;
+    serverName = "http://192.168.1.252/saveIP.php";
+    http.begin(client_sql, serverName.c_str());
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    // delay(500);
+    int httpResponseCode = http.POST(httpRequestData);
+    payload = http.getString();
+    Serial.printf("http rc %d payload %s \n\t %s\n", httpResponseCode, payload.c_str(), httpRequestData.c_str());
+    http.end();
+    return;
 }
 /**
  * @brief Sends an HTTP GET request and returns the response body.
@@ -180,4 +193,3 @@ String performHttpGet(const char *url)
 #endif
   return response;
 }
-

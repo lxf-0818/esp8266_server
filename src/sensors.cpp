@@ -282,10 +282,9 @@ void getSensorData(char *cmd, char *str)
 #else
     strcpy(tmp, sensorsData.c_str());
 #endif
-    //uint8_t *data = (uint8_t *)&tmp[0]; // ptr to 1st char in str
     uint32_t calcCRC = calcCRC32((uint8_t *)&tmp, strlen(tmp));
 #ifdef SOCKET_AES
-String iv = convert2hexAscii(aes_iv);
+    String iv = convert2hexAscii(aes_iv);
     bzero(str, 512);
     sprintf(str, "%x:%s:%s", calcCRC, tmp, iv.c_str());
 #else
