@@ -91,7 +91,7 @@
 //   int pid = atoi(token); //
   
 //   Serial.printf("lastOctal %d\n", pid+180);
-//   #define DEVICES 5
+//   #define DEVICES 6
 //   if (pid < 0 || pid > DEVICES)
 //     return pid; // ip/mac db empty?
 //   return pid + 180; // Set Static IP address

@@ -44,6 +44,7 @@ const std::map<String, String> locMap =
           {"192.168.1.4", "Mud Room"},
           {"192.168.1.10", "Laundry Room"},
           {"192.168.1.13", "Main Room"},
+          {"192.168.1.13", "Outside"},
 
         };
 

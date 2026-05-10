@@ -54,7 +54,7 @@
 #define BMP_ADDRESS 0x58
 #define ADC_ADDRESS 0x48
 #define MCP_ADDRESS 0x18
-#define DEVICES 5
+#define DEVICES 6
 #define SEALEVELPRESSURE_HPA (1012.8)
 
 int configSensors(char *sensorName);

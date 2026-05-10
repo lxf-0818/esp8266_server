@@ -68,7 +68,7 @@
 #include <Arduino.h>
 #define ELEGANTOTA_USE_ASYNC_WEBSERVER 1
 #include <ESP8266WiFi.h>
-#define DEVICES 5
+#define DEVICES 6
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <ElegantOTA.h>
