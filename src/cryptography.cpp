@@ -33,7 +33,7 @@ void aes_init();
 int readAES(char *fileName, byte data[]);
 String readLittle(char *fileName);
 int readEncyptWifiCredentials(char *cssid_psw);
-
+String apiKeyValue;
 
 AESLib aesLib;
 // AES Encryption Keys
@@ -179,6 +179,8 @@ int readEncyptWifiCredentials(char *ssid_psw)
   ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
   readAES((char *)"/aes.txt", aes_key);
   readAES((char *)"/iv.txt", iv); // read the "static" IV that was used to create encrypted ssid:pass
+  apiKeyValue = readLittle((char *)"/api.txt");
+
   aes_init();
 
   memcpy(aes_iv_copy, iv, sizeof(iv)); 

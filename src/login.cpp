@@ -34,6 +34,7 @@ int beginWIFI(String sensorName);
 int readEncyptWifiCredentials(char *cssid_psw);
 void upDateDB(String sensorName);
 String performHttpGet(const char *url);
+extern String apiKeyValue;
 void conver2hexAscii(unsigned char *iv);
 int writeLittle(char *fileName, const char *message);
 const std::map<String, String> locMap =
@@ -102,7 +103,7 @@ int beginWIFI(String sensorName)
   Serial.print("Port ");
   Serial.println(PORT);
 
-  // remove stale entry in DB based on IP@
+  // remove existing entry in DB based on IP@
   String IP = WiFi.localIP().toString();
   String phpScript = "http://192.168.1.252/deleteIP.php?key=" + (String)IP;
   performHttpGet(phpScript.c_str());
@@ -135,32 +136,30 @@ void upDateDB(String sensorName)
   WiFiClient client_sql;
   HTTPClient http;
   char macAddr[80];
-  String payload, IP, httpRequestData, serverName, apiKeyValue, sensorLocation;
+  String payload, IP, httpRequestData, serverName, sensorLocation;
 
   WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
   IP = WiFi.localIP().toString();
-  apiKeyValue = "tPmAT5Ab3j7F9", sensorLocation = "HOME";
-
-  for (const auto &pair : locMap) {
-    Serial.printf("1st %s 2nd %s\n", pair.first.c_str(), pair.second.c_str());
-    if (pair.first == IP)
-      sensorLocation = pair.second;
-     }
-    httpRequestData = "api_key=" + apiKeyValue;
-    httpRequestData += "&board=esp8266";
-    httpRequestData += "&location=" + sensorLocation;
-    httpRequestData += "&IPv4Address=" + IP;
-    httpRequestData += "&macAddress=" + (String)macAddr;
-    httpRequestData += "&sensor=" + sensorName;
-    serverName = "http://192.168.1.252/saveIP.php";
-    http.begin(client_sql, serverName.c_str());
-    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-    // delay(500);
-    int httpResponseCode = http.POST(httpRequestData);
-    payload = http.getString();
-    Serial.printf("http rc %d payload %s \n\t %s\n", httpResponseCode, payload.c_str(), httpRequestData.c_str());
-    http.end();
-    return;
+  auto it = locMap.find(IP.c_str());
+  if (it != locMap.end())
+    sensorLocation = it->second;
+  else
+    sensorLocation = "";
+  httpRequestData = "api_key=" + apiKeyValue;
+  httpRequestData += "&board=esp8266";
+  httpRequestData += "&location=" + sensorLocation;
+  httpRequestData += "&IPv4Address=" + IP;
+  httpRequestData += "&macAddress=" + (String)macAddr;
+  httpRequestData += "&sensor=" + sensorName;
+  serverName = "http://192.168.1.252/saveIP.php";
+  http.begin(client_sql, serverName.c_str());
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  // delay(500);
+  int httpResponseCode = http.POST(httpRequestData);
+  payload = http.getString();
+  Serial.printf("http rc %d payload %s \n\t %s\n", httpResponseCode, payload.c_str(), httpRequestData.c_str());
+  http.end();
+  return;
 }
 /**
  * @brief Sends an HTTP GET request and returns the response body.
