@@ -68,7 +68,6 @@
 #include <Arduino.h>
 #define ELEGANTOTA_USE_ASYNC_WEBSERVER 1
 #include <ESP8266WiFi.h>
-#define DEVICES 6
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <ElegantOTA.h>
@@ -106,14 +105,11 @@ char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
  */
 void setup()
 {
-  pinMode(LED_BUILTIN, OUTPUT);
 
   int cnt = 0;
   Serial.begin(115200);
-  Serial.println("");
-  digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
-
-  cnt = configSensors(sensorName);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH); // turn off
   if (cnt > 0)
   {
     for (int i = 0; i < cnt; i++)

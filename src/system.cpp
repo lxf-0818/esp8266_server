@@ -46,8 +46,8 @@ void performSystemTask(char *cmdFromClient)
 
     Serial.printf("cmd recieved:%s\n",cmdFromClient);
 
-    if (strstr(cmdFromClient, "BLK")) 
-         blkMe();
+    if (strstr(cmdFromClient, "BLK"))
+        blkMe();
     else if (strstr(cmdFromClient, "RST"))
         ESP.reset();
     // else if (strstr(cmdFromClient, "NEW"))
@@ -58,7 +58,7 @@ void performSystemTask(char *cmdFromClient)
         // todo need to test wifi connection and update pc
         //convert_ivs_to_hex();
         byte new_aes_key[N_BLOCK];
-       // byte new_aes_iv[N_BLOCK];
+        // byte new_aes_iv[N_BLOCK];
 
         String ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt"); // read original encrypted ssid and password
         memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
@@ -69,7 +69,7 @@ void performSystemTask(char *cmdFromClient)
         memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
         length = encrypt_to_ciphertext(cleartext, aes_iv_copy, new_aes_key); // now encrypt ssid and password with new key
 
-       // writeLittle((char *)"/new_ssid_pass_aes.txt", ciphertext); // save
+        // writeLittle((char *)"/new_ssid_pass_aes.txt", ciphertext); // save
 
         String data = readLittle((char *)"/new_ssid_pass_aes.txt"); // round robin verification
         memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
@@ -87,12 +87,16 @@ void performSystemTask(char *cmdFromClient)
         //      strcpy(results, "failed to update");
     }
 }
-void blkMe(){
+void blkMe()
+{
+    pinMode(LED_BUILTIN, OUTPUT);
+
     for (int i = 0; i < 5; i++)
-  {
-    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
-    delay(500);                      // Wait for a second
-    digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH47
-    delay(500);
-  }
+    {
+        digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off
+        delay(500);                      // Wait for a second
+        digitalWrite(LED_BUILTIN, LOW);  // Turn the LED on
+        delay(500);
+    }
+    digitalWrite(LED_BUILTIN, HIGH);
 }
