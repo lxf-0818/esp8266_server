@@ -22,7 +22,7 @@
 #include <AESLib.h>
 #include <ESP8266WiFi.h>
 void blkMe();
-
+#define INPUT_BUFFER_LIMIT 2048
 int beginWIFI(String sensorName);
 //void convert_ivs_to_hex();
 extern byte aes_key[N_BLOCK];
@@ -30,10 +30,9 @@ extern byte aes_iv[N_BLOCK];
 
 extern byte aes_iv_copy[N_BLOCK];
 
-extern char results[];
-extern char cleartext[];
+extern char cleartext[INPUT_BUFFER_LIMIT];
 extern byte new_aes_iv[16];
-extern char ciphertext[4096];
+extern char ciphertext[INPUT_BUFFER_LIMIT*2];
 int length = -1;
 
 String readLittle(char *fileName);
@@ -81,10 +80,6 @@ void performSystemTask(char *cmdFromClient)
         }
         Serial.println();
 
-        // if (length > 0)
-        //      strcpy(results, "next boot aes key will be updated");
-        //  else
-        //      strcpy(results, "failed to update");
     }
 }
 void blkMe()
