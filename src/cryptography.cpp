@@ -176,10 +176,13 @@ int readEncyptWifiCredentials(char *ssid_psw)
     Serial.println("Error mounting the file system");
     return 1;
   }
-  ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
   readAES((char *)"/aes.txt", aes_key);
   readAES((char *)"/iv.txt", iv); // read the "static" IV that was used to create encrypted ssid:pass
   apiKeyValue = readLittle((char *)"/api.txt");
+  ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
+
+  // String foo = readLittle((char *)"/test.txt");
+  // Serial.printf("test.txt %s\n", foo.c_str());
 
   aes_init();
 

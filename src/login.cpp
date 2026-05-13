@@ -23,6 +23,7 @@
 #include <ESP8266HTTPClient.h>
 #include <Adafruit_SSD1306.h>
 #include <map>
+#include <tuple>
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
@@ -37,18 +38,15 @@ String performHttpGet(const char *url);
 extern String apiKeyValue;
 void conver2hexAscii(unsigned char *iv);
 int writeLittle(char *fileName, const char *message);
+
 const std::map<String, String> locMap =
-      {
-          {"192.168.1.3", "Master Bedroom"},
-          {"192.168.1.6", "Guest Bedroom"},
-          {"192.168.1.4", "Mud Room"},
-          {"192.168.1.10", "Laundry Room"},
-          {"192.168.1.13", "Main Room"},
-          {"192.168.1.13", "Outside"},
-
-        };
-
-
+    {
+        {"192.168.1.3", "Master Bedroom"},
+        {"192.168.1.13", "Main Room"},
+        {"192.168.1.10", "Mud Room"},
+        {"192.168.1.4", "Laundry Room"},
+        {"192.168.1.11", "Guest Room"},
+        {"192.168.1.6", "ADC Guest Room"}};
 int beginWIFI(String sensorName)
 {
   String ssid, pass, temp;
@@ -141,11 +139,13 @@ void upDateDB(String sensorName)
 
   WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
   IP = WiFi.localIP().toString();
+  // Serial.printf("ip %s\n", IP.c_str());
   auto it = locMap.find(IP.c_str());
   if (it != locMap.end())
     sensorLocation = it->second;
   else
-    sensorLocation = "";
+    sensorLocation = "unknown";
+
   httpRequestData = "api_key=" + apiKeyValue;
   httpRequestData += "&board=esp8266";
   httpRequestData += "&location=" + sensorLocation;

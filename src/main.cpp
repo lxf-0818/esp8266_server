@@ -110,6 +110,7 @@ void setup()
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH); // turn off
+  cnt = configSensors(sensorName);
   if (cnt > 0)
   {
     for (int i = 0; i < cnt; i++)
