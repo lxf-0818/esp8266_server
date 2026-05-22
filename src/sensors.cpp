@@ -256,7 +256,7 @@ void getSensorData(char *cmd, char *str)
         float rRatio = 5.63;                                         // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
         float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
-        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0, volts1, rRatio);
+        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0*rRatio, volts1, rRatio);
         // Serial.printf("A1 is connected to 3V on ESP\n");
         sensorsData.concat(str);
         deviceCnt++;
