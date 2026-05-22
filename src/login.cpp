@@ -134,9 +134,8 @@ void upDateDB(String sensorName)
 {
   WiFiClient client_sql;
   HTTPClient http;
-  char macAddr[80];
   String payload, IP, httpRequestData, serverName, sensorLocation;
-
+  char macAddr[80];
   WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
   IP = WiFi.localIP().toString();
   // Serial.printf("ip %s\n", IP.c_str());
