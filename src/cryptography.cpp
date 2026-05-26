@@ -77,7 +77,7 @@ void aes_init()
  */
 void encrypt_stub(char *str, char *aes_encrypt)
 {
-  aesLib.gen_iv(aes_iv); 
+  aesLib.gen_iv(aes_iv);
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
   memcpy(aes_key_copy, aes_key, sizeof(aes_key));
   int length = encrypt_to_ciphertext(str, aes_iv_copy, aes_key_copy);
@@ -110,14 +110,14 @@ uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte key[])
   int msgLen = strlen(msg);
   int cipherlength = aesLib.get_cipher64_length(msgLen);
   char encrypted_bytes[cipherlength];
+
   uint16_t enc_length = aesLib.encrypt64((byte *)msg, msgLen, encrypted_bytes, key, sizeof(aes_key), iv);
   sprintf(ciphertext, "%s", encrypted_bytes);
 
-  // test aes en/de crypt to ensure we are good to go
   memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
   memcpy(aes_key_copy, aes_key, sizeof(aes_key));
-
-  decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy, aes_key_copy, cleartext);
+  // test aes en/de crypt to ensure we are good to go
+   decrypt_to_cleartext(ciphertext, strlen(ciphertext), aes_iv_copy, aes_key_copy, cleartext);
 
   if (strcmp(cleartext, msg)) {
     Serial.println("no match");
@@ -186,7 +186,7 @@ int readEncyptWifiCredentials(char *ssid_psw)
 
   aes_init();
 
-  memcpy(aes_iv_copy, iv, sizeof(iv)); 
+  memcpy(aes_iv_copy, iv, sizeof(iv));
   memcpy(aes_key_copy, aes_key, sizeof(aes_key));
   decrypt_to_cleartext((char *)ssid_psw_aes.c_str(), ssid_psw_aes.length(), aes_iv_copy, aes_key_copy, cleartext);
   strcpy(ssid_psw, cleartext); // return ssid-pass  as *char

@@ -26,18 +26,19 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 - Sensor read command: `ALL` (case-insensitive — received command is uppercased)
 - Control commands: `BLK`, `RST` (handled by `performSystemTask()`)
 - Sensor response format (AES on): `<crc32_hex>:<ciphertext>:<iv_hex_csv>`
-- Sensor response format (`SOCKET_AE`): `<crc32_hex>:<plaintext>`
+- Sensor response format (AES disabled build): `<crc32_hex>:<plaintext>`
 - Non-`ALL` response format: `<cmd>_<server_IPv4>`
 
 ## Runtime Sequence
 1. `setup()` scans/initializes sensors via `configSensors()`.
-2. If sensors found: starts `WiFiServer` then joins WiFi and registers with backend.
-3. If no sensors found: prints `No Device Found check wiring`; server never starts.
-4. Always: configures `LED_BUILTIN` output and attaches ISR to `D6` (`INPUT_PULLUP`, `CHANGE` edge).
+2. If sensors found: prints detected I2C mappings, starts `WiFiServer`, joins Wi-Fi/registers with backend, and starts async web + ElegantOTA services.
+3. If no sensors found: prints `No Valid Sensor Found check wiring`; Wi-Fi/TCP/OTA services do not start.
+4. `LED_BUILTIN` is configured as output during setup.
+5. D6 interrupt setup is present only as commented code; ISR is not attached in current flow.
 5. `loop()` accepts one client at a time; 5-second inactivity timeout; reads command (uppercased, max 79 chars).
 6. If command contains `ALL`: calls `getSensorData()` and returns encrypted/CRC payload.
 7. Otherwise: returns `<cmd>_<server_IP>` and calls `performSystemTask()`.
 
 ## Notes
-- Socket payload may be AES/base64 encrypted depending on compile flags (`SOCKET_AE`).
-- ISR (`isr()`) attached to `D6` on `CHANGE` edge: blinks `LED_BUILTIN` once and prints to Serial. Serial and `delay()` in ISR context are unsafe and intended for testing only.
+- Socket payload may be AES/base64 encrypted depending on compile flags (`SOCKET_AES` is enabled by default).
+- `isr()` exists and still uses Serial plus `delay()`, but it is currently not attached; treat it as bring-up/test code rather than active runtime behavior.

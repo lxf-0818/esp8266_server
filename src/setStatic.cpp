@@ -11,7 +11,7 @@
 
 // int tmpConnect(char *ssid, char *psw);
 // int setWireBegin(int addr);
-// void upDateDB(String sensorName);
+// void upDateTableIPstatic(String sensorName);
 
 // #define SSD_ADDR 0x3c
 

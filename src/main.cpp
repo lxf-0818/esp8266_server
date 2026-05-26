@@ -1,5 +1,6 @@
 /**
  * @file main.cpp
+ * Doxygen
  * @brief ESP8266 server implementation for handling client connections and sensor data.
  *
  * This program sets up a WiFi server on the ESP8266 microcontroller to listen for client connections
@@ -22,7 +23,7 @@
  * - PORT: The port number the server listens on (default: 8888).
  *
  * @functions
- * - setup(): Detects sensors, starts the TCP server, connects to Wi-Fi, starts FTP and ElegantOTA.
+ * - setup(): Detects sensors, starts the TCP server, connects to Wi-Fi, starts ElegantOTA.
  * - loop(): Accepts TCP clients, dispatches ALL/non-ALL commands, handles timeout and response.
  * - configSensors(char *sensorName): Probes I2C/1-Wire bus and populates sensorName tag string; returns sensor count.
  * - printDevice(int deviceNo): Prints I2C address and pin info for a detected sensor to Serial.
@@ -73,51 +74,77 @@
 #include <ElegantOTA.h>
 #include "time.h"
 
-
 char results[512], buildTime[20];
 int configSensors(char *sensorName);
 void encrypt_stub(char *str, char *str2);
 void getSensorData(char *cmdFromClient, char *str);
 int beginWIFI(String sensorName);
-void performSystemTask(char *cmdFromClient);
+void performSystemTask(char *cmdFromClient, char *results);
 void printDevice(int deviceNo);
 void IRAM_ATTR isr();
 void getBuildTime(char *lastBook);
+void upDateTableI2C(String sensorName, int deviceNo);
+String performHttpGet(const char *url);
 
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
 WiFiClient client;
 AsyncWebServer serverAsyn(80);
-
 char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
+
 /**
- * @brief One-time initialisation for the ESP8266 server.
+ * @brief Performs one-time startup for the ESP8266 sensor server.
  *
- * Execution order:
- * 1. Opens Serial at 115200 baud.
- * 2. Calls configSensors() to probe the bus; aborts with an error message if no sensor is found.
- * 3. Calls printDevice() for each detected sensor.
- * 4. Starts the TCP server on PORT (8888).
- * 5. Calls beginWIFI() to connect to Wi-Fi and register the device with the HTTP back-end.
- * 6. Calls initFz() to start the FTP server.
- * 7. Starts ESPAsyncWebServer on port 80 and attaches ElegantOTA.
- * 8. Configures LED_BUILTIN as output (interrupt pin D6 is reserved but currently disabled).
+ * Startup flow:
+ * 1. Initializes Serial (115200) and sets `LED_BUILTIN` as output.
+ * 2. Detects attached sensors via `configSensors(sensorName)`.
+ * 3. If no valid sensor is found, prints a wiring warning and skips server startup.
+ * 4. Starts the TCP server on `PORT` (8888) and connects/registers Wi-Fi via `beginWIFI()`.
+ * 5. Clears previous I2C rows for this board (`deleteI2C.php?key=<mac>`).
+ * 6. Iterates parsed sensor tags, prints each device, and uploads per-device I2C pin mapping using `upDateTableI2C()`.
+ * 7. Starts Async HTTP server on port 80, registers `/` route, and enables ElegantOTA.
+ *
+ * @note Interrupt setup on D6 is intentionally disabled (left commented in source).
  */
 void setup()
 {
 
   int cnt = 0;
   Serial.begin(115200);
+  Serial.println();
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH); // turn off
   cnt = configSensors(sensorName);
   if (cnt > 0)
   {
-    for (int i = 0; i < cnt; i++)
-      printDevice(i);
 
     server.begin();
     beginWIFI(sensorName);
+    char macAddr[80];
+    WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
+    String phpScript = "http://192.168.1.252/deleteI2C.php?key=" + (String)macAddr;
+    String payload = performHttpGet(phpScript.c_str());
+
+    String sensor = sensorName;
+    sensor.concat("_");
+    int z = 0;
+    // Expand the underscore-delimited sensor list into one device per pass.
+    while (1)
+    {
+      int j = sensor.indexOf("_");
+      if (j > 0)
+      {
+        // Current token becomes the sensor family name for this device.
+        String name = sensor.substring(0, j);
+        printDevice(z);
+        upDateTableI2C(name, z);
+        // Advance to the remaining tags 
+        z++;
+        sensor = sensor.substring(j + 1);
+      }
+      else
+        break;
+    }
 
     // getBuildTime(buildTime);
     serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request)
@@ -130,7 +157,6 @@ void setup()
 
     Serial.println("\n No Valid Sensor Found check wiring");
   }
-
 
   // pinMode(D6, INPUT_PULLUP);
   // attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
@@ -196,15 +222,10 @@ void loop()
         client.read(); // Discard excess data
 
     if (strnstr(cmdFromClient, "ALL", 3))
-    {
       getSensorData(cmdFromClient, results);
-    }
     else
-    {
-      String IP = WiFi.localIP().toString();
-      snprintf(results, sizeof(results), "%s_%s", cmdFromClient, IP.c_str());
-      performSystemTask(cmdFromClient);
-    }
+      performSystemTask(cmdFromClient, results);
+
     client.print(results);
     client.stop();
     Serial.println(results);

@@ -10,7 +10,7 @@
  * 4. Probes I2C address `SSD_ADDR` (0x3C); if an SSD1306 is present, displays
  *    "server PIO", the local IP, and `sensorName`.
  * 5. Issues an HTTP GET to `deleteIP.php` to purge any stale DB entry for
- *    this IP, then calls `upDateDB()` to register the current MAC/IP/sensor.
+ *    this IP, then calls `upDateTableIPstatic()` to register the current MAC/IP/sensor.
  *
  * @param sensorName Name of the sensor shown on the display and stored in the DB.
  * @return 0 on success, 1 if the WiFi connection times out.
@@ -33,7 +33,8 @@ int setWireBegin(int addr);
 
 int beginWIFI(String sensorName);
 int readEncyptWifiCredentials(char *cssid_psw);
-void upDateDB(String sensorName);
+void upDateTableIPstatic(String sensorName);
+void upDateTableI2C(String sensorName, int deviceNo);
 String performHttpGet(const char *url);
 extern String apiKeyValue;
 void conver2hexAscii(unsigned char *iv);
@@ -46,7 +47,19 @@ const std::map<String, String> locMap =
         {"192.168.1.10", "Mud Room"},
         {"192.168.1.4", "Laundry Room"},
         {"192.168.1.11", "Guest Room"},
+        {"192.168.1.15", "Gym"},
         {"192.168.1.6", "ADC Guest Room"}};
+#define DEVICES 8
+struct I2C
+{
+  int I2Caddr;
+  int scl;
+  char sclGPIO[3];
+  int sca;
+  char scaGPIO[3];
+};
+extern struct I2C devices[DEVICES];
+
 int beginWIFI(String sensorName)
 {
   String ssid, pass, temp;
@@ -106,7 +119,7 @@ int beginWIFI(String sensorName)
   String IP = WiFi.localIP().toString();
   String phpScript = "http://192.168.1.252/deleteIP.php?key=" + (String)IP;
   performHttpGet(phpScript.c_str());
-  upDateDB(sensorName);
+  upDateTableIPstatic(sensorName);
 
   return 0;
 }
@@ -130,7 +143,7 @@ int beginWIFI(String sensorName)
  *
  * @return void
  */
-void upDateDB(String sensorName)
+void upDateTableIPstatic(String sensorName)
 {
   WiFiClient client_sql;
   HTTPClient http;
@@ -191,4 +204,44 @@ String performHttpGet(const char *url)
   Serial.printf("url: %s Payload: %s\n", url, response.c_str());
 #endif
   return response;
+}
+void upDateTableI2C(String sensorName, int deviceNo)
+{
+  WiFiClient client_sql;
+  HTTPClient http;
+  String payload, IP, httpRequestData, serverName, sensorLocation;
+  Serial.printf("sensor %s deviceNo %d\n",sensorName.c_str(),deviceNo);
+  char macAddr[80], sca[20], scl[20];
+  WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
+  IP = WiFi.localIP().toString();
+  // Serial.printf("ip %s\n", IP.c_str());
+  auto it = locMap.find(IP.c_str());
+  if (it != locMap.end())
+    sensorLocation = it->second;
+  else
+    sensorLocation = "unknown";
+  // Serial.printf("I2c addr 0x%x sca %s(%d) scl %d(%s)  \n",
+  //               devices[deviceNo].I2Caddr,
+  //               devices[deviceNo].scaGPIO, devices[deviceNo].sca,
+  //               devices[deviceNo].sclGPIO, devices[deviceNo].scl);
+
+  sprintf(sca, "%s(%d)", devices[deviceNo].scaGPIO, devices[deviceNo].sca);
+  sprintf(scl, "%s(%d)", devices[deviceNo].sclGPIO, devices[deviceNo].scl);
+  httpRequestData = "api_key=" + apiKeyValue;
+  httpRequestData += "&board=esp8266";
+  httpRequestData += "&location=" + sensorLocation;
+  httpRequestData += "&IPv4Address=" + IP;
+  httpRequestData += "&macAddress=" + (String)macAddr;
+  httpRequestData += "&sensor=" + sensorName;
+  httpRequestData += "&sca=" + (String)sca;
+  httpRequestData += "&scl=" + (String)scl;
+  serverName = "http://192.168.1.252/saveI2C.php";
+  Serial.printf("httpRequestData %s\n", httpRequestData.c_str());
+  http.begin(client_sql, serverName.c_str());
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  int httpResponseCode = http.POST(httpRequestData);
+  payload = http.getString();
+  Serial.printf("http rc %d payload %s \n\t %s\n", httpResponseCode, payload.c_str(), httpRequestData.c_str());
+  http.end();
+  return;
 }

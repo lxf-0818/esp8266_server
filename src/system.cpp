@@ -22,9 +22,10 @@
 #include <AESLib.h>
 #include <ESP8266WiFi.h>
 void blkMe();
+void dumpI2C(char *result);
 #define INPUT_BUFFER_LIMIT 2048
 int beginWIFI(String sensorName);
-//void convert_ivs_to_hex();
+// void convert_ivs_to_hex();
 extern byte aes_key[N_BLOCK];
 extern byte aes_iv[N_BLOCK];
 
@@ -32,7 +33,7 @@ extern byte aes_iv_copy[N_BLOCK];
 
 extern char cleartext[INPUT_BUFFER_LIMIT];
 extern byte new_aes_iv[16];
-extern char ciphertext[INPUT_BUFFER_LIMIT*2];
+extern char ciphertext[INPUT_BUFFER_LIMIT * 2];
 int length = -1;
 
 String readLittle(char *fileName);
@@ -40,47 +41,52 @@ int writeLittle(char *fileName, const char *message);
 
 uint16_t encrypt_to_ciphertext(char *msg, byte iv[], byte aes[]);
 void decrypt_to_cleartext(char *msg, uint16_t msgLen, byte iv[], byte key[], char *cleartext);
-void performSystemTask(char *cmdFromClient)
+void performSystemTask(char *cmdFromClient, char *results)
 {
 
-    Serial.printf("cmd recieved:%s\n",cmdFromClient);
+    Serial.printf("cmd recieved:%s\n", cmdFromClient);
 
+    
     if (strstr(cmdFromClient, "BLK"))
+    {
         blkMe();
+        String IP = WiFi.localIP().toString();
+        sprintf(results, "%s_%s", cmdFromClient, IP.c_str());
+    }
     else if (strstr(cmdFromClient, "RST"))
         ESP.reset();
-    // else if (strstr(cmdFromClient, "NEW"))
-    //     int i = 0;
-    else if (strstr(cmdFromClient, "CHG")) // change aes_key
-    {
-        // re-encrypting stored WiFi credentials with a newly generated AES key and saving them to the filesystem .
-        // todo need to test wifi connection and update pc
-        //convert_ivs_to_hex();
-        byte new_aes_key[N_BLOCK];
-        // byte new_aes_iv[N_BLOCK];
+    else if (strstr(cmdFromClient, "I2C"))
+        dumpI2C(results);
 
-        String ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt"); // read original encrypted ssid and password
-        memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-        decrypt_to_cleartext((char *)ssid_psw_aes.c_str(), strlen(ssid_psw_aes.c_str()), aes_iv_copy, aes_key, cleartext);
+    // else if (strstr(cmdFromClient, "CHG")) // change aes_key
+    // {
+    //     // re-encrypting stored WiFi credentials with a newly generated AES key and saving them to the filesystem .
+    //     // todo need to test wifi connection and update pc
+    //     // convert_ivs_to_hex();
+    //     byte new_aes_key[N_BLOCK];
+    //     // byte new_aes_iv[N_BLOCK];
 
-        AESLib aesLib;
-        aesLib.gen_iv(new_aes_key); // iv ng  key works  WTF ????
-        memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-        length = encrypt_to_ciphertext(cleartext, aes_iv_copy, new_aes_key); // now encrypt ssid and password with new key
+    //     String ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt"); // read original encrypted ssid and password
+    //     memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
+    //     decrypt_to_cleartext((char *)ssid_psw_aes.c_str(), strlen(ssid_psw_aes.c_str()), aes_iv_copy, aes_key, cleartext);
 
-        // writeLittle((char *)"/new_ssid_pass_aes.txt", ciphertext); // save
+    //     AESLib aesLib;
+    //     aesLib.gen_iv(new_aes_key); // iv ng  key works  WTF ????
+    //     memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
+    //     length = encrypt_to_ciphertext(cleartext, aes_iv_copy, new_aes_key); // now encrypt ssid and password with new key
 
-        String data = readLittle((char *)"/new_ssid_pass_aes.txt"); // round robin verification
-        memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
-        decrypt_to_cleartext((char *)data.c_str(), strlen(data.c_str()), aes_iv_copy, new_aes_key, cleartext);
-        Serial.printf("ciphertext %s \n", ciphertext);
-        for (int i = 0; i < 16; i++)
-        {
-            Serial.printf("%x,", new_aes_key[i]);
-        }
-        Serial.println();
+    //     // writeLittle((char *)"/new_ssid_pass_aes.txt", ciphertext); // save
 
-    }
+    //     String data = readLittle((char *)"/new_ssid_pass_aes.txt"); // round robin verification
+    //     memcpy(aes_iv_copy, aes_iv, sizeof(aes_iv));
+    //     decrypt_to_cleartext((char *)data.c_str(), strlen(data.c_str()), aes_iv_copy, new_aes_key, cleartext);
+    //     Serial.printf("ciphertext %s \n", ciphertext);
+    //     for (int i = 0; i < 16; i++)
+    //     {
+    //         Serial.printf("%x,", new_aes_key[i]);
+    //     }
+    //     Serial.println();
+    // }
 }
 void blkMe()
 {

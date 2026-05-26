@@ -25,13 +25,13 @@ Main entry point called from `setup()`.
    - local IP address
    - `sensorName`
 5. Issues an HTTP GET to `deleteIP.php?key=<local_ip>` to purge any stale DB entry.
-6. Calls `upDateDB()` to POST the current MAC/IP/sensor record.
+6. Calls `upDateTableIPstatic()` to POST the current MAC/IP/sensor record.
 
 Return value:
 - `0` success
 - `1` WiFi connection timed out
 
-### upDateDB(sensorName)
+### upDateTableIPstatic(sensorName)
 HTTP POST to `http://192.168.1.252/saveIP.php` with form-encoded fields:
 
 | Field | Value |

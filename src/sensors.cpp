@@ -33,7 +33,6 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
-#include "Adafruit_BMP3XX.h"
 #include <Adafruit_BME280.h>
 #include <Adafruit_BMP280.h>
 #include "Adafruit_BMP3XX.h"
@@ -54,26 +53,26 @@
 #define BMP_ADDRESS 0x58
 #define ADC_ADDRESS 0x48
 #define MCP_ADDRESS 0x18
-#define DEVICES 6
+#define DEVICES 8
 #define SEALEVELPRESSURE_HPA (1012.8)
 
 int configSensors(char *sensorName);
 void getSensorData(char *cmd, char *str);
 int setWireBegin(int addr);
 int scanOneWire();
-int check_if_exist_I2C();
+int check_if_exist_I2C(uint8_t i, uint8_t j);
 void scanI2Cports();
 int readTemp(char *str);
 void encrypt_stub(char *str, char *str2);
 String convert2hexAscii(unsigned char *iv);
 int readAES(char *fileName, byte data[]);
 extern byte aes_iv[];
+void dumpI2C(char *result);
 
 // Valid pins for I2C
 String portMap[] = {"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"};
 uint8_t portArray[] = {16, 5, 4, 0, 2, 14, 12, 13};
 int myCnt = 0;
-uint8_t i, j;
 
 // I2C
 Adafruit_BME280 bme;
@@ -88,9 +87,9 @@ struct I2C
 {
     int I2Caddr;
     int scl;
-    char sclPin[3];
+    char sclGPIO[3];
     int sca;
-    char scaPin[3];
+    char scaGPIO[3];
 };
 struct I2C devices[DEVICES];
 
@@ -230,7 +229,7 @@ void getSensorData(char *cmd, char *str)
         sensorsData.concat(str);
         deviceCnt++;
     }
-    
+
     if (BMP_CNFG && setWireBegin(BMx_ADDRESS))
     {
 
@@ -256,7 +255,7 @@ void getSensorData(char *cmd, char *str)
         float rRatio = 5.63;                                         // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
         float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
-        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0*rRatio, volts1, rRatio);
+        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0 * rRatio, volts1, rRatio);
         // Serial.printf("A1 is connected to 3V on ESP\n");
         sensorsData.concat(str);
         deviceCnt++;
@@ -313,15 +312,17 @@ void getSensorData(char *cmd, char *str)
  */
 void scanI2Cports()
 {
-    for (i = 0; i < sizeof(portArray); i++)
+    for (uint8_t i = 0; i < sizeof(portArray); i++)
     {
-        for (j = 0; j < sizeof(portArray); j++)
+        for (uint8_t j = 0; j < sizeof(portArray); j++)
         {
             if (i != j)
             {
                 Wire.begin(portArray[i], portArray[j]);
-                if (check_if_exist_I2C())
+                if (check_if_exist_I2C(i, j))
                 {
+
+// #define DEBUG_SCAN
 #ifdef DEBUG_SCAN
                     Serial.printf(" SDA %s(%d) SCL %s(%d) \n",
                                   portMap[i].c_str(), portArray[i], portMap[j].c_str(), portArray[j]);
@@ -333,32 +334,29 @@ void scanI2Cports()
 }
 
 /**
- * @brief Scans the I2C bus for connected devices and returns the count of detected devices.
+ * @brief Probes the currently selected I2C bus for supported sensor addresses.
  *
- * This function iterates through all possible I2C addresses (1 to 126) and checks if a device
- * acknowledges communication at each address. If a device is found, its address and associated
- * port information are stored in the `devices` array. The function also handles errors during
- * communication and resets the ESP device if an unknown error occurs.
+ * The function checks only the fixed list of supported device addresses used by
+ * this project (`0x44`, `0x76`, `0x18`, `0x58`, `0x48`, `0x77`). For each address
+ * that acknowledges on the bus, it records the address together with the active
+ * SDA/SCL pin pair into the global `devices` table and increments the device count.
+ * The table is appended to using the global `myCnt` index, so the caller should
+ * clear or reuse that state only in the surrounding scan workflow.
  *
- * @note The function uses the Wire library for I2C communication. Ensure that the Wire library
- *       is properly initialized before calling this function.
+ * If the I2C transaction reports error code `4`, the ESP8266 is reset immediately.
  *
- * @return int The number of I2C devices detected on the bus.
+ * @note This routine depends on `Wire.begin(...)` having already selected the
+ *       candidate SDA/SCL pair before probing is called.
+ * @note The stored SDA/SCL pins come from the global `i` and `j` indices, so the
+ *       caller should only use this helper inside the scan loops that set them.
  *
- * @warning If an unknown error occurs during communication, the ESP device will reset.
+ * @return int Number of supported I2C devices detected on the active bus.
  *
- * @details
- * - If the `DEBUG_SCAN` macro is defined, the function will print the addresses of detected
- *   I2C devices to the Serial monitor.
- * - The `devices` array and `myCnt` variable are used to store information about detected
- *   devices. Ensure these are properly defined and initialized in the global scope.
- * - The `portArray` array and `i`, `j` indices are used to associate I2C addresses with
- *   specific ports. Ensure these are defined and initialized appropriately.
- *
- *  NOTE: only tested 1 BMP280(0x77) didn't work not sure if code or bad sensor
+ * @warning The scan table is appended to `devices[myCnt]`; ensure `myCnt` stays
+ *          within bounds for the number of discovered devices.
  */
 // #define DEBUG_SCAN
-int check_if_exist_I2C()
+int check_if_exist_I2C(uint8_t i, uint8_t j)
 {
     byte error;
     int nDevices = 0;
@@ -372,6 +370,7 @@ int check_if_exist_I2C()
         error = Wire.endTransmission();
         if (!error)
         {
+// #define DEBUG_SCAN
 #ifdef DEBUG_SCAN
             Serial.printf("I2C device addr ");
             if (supportedSensors[index] < 16)
@@ -384,8 +383,8 @@ int check_if_exist_I2C()
             //    Serial.printf("valid sensor %x\n", supportedSensors[index]);
             devices[myCnt].I2Caddr = supportedSensors[index];
             devices[myCnt].sca = portArray[i];
-            strcpy(devices[myCnt].scaPin, portMap[i].c_str());
-            strcpy(devices[myCnt].sclPin, portMap[j].c_str());
+            strcpy(devices[myCnt].scaGPIO, portMap[i].c_str());
+            strcpy(devices[myCnt].sclGPIO, portMap[j].c_str());
             devices[myCnt++].scl = portArray[j];
 
             nDevices++;
@@ -401,14 +400,15 @@ int check_if_exist_I2C()
 
     return nDevices;
 }
-// Looks up `addr` in the `devices` table and calls Wire.begin() with the
-// matching SDA/SCL pins. Returns 1 if the address was found, 0 otherwise.
+// Looks up `addr` in the populated `devices` table and calls Wire.begin() with the
+// matching SDA/SCL pins for that device. Returns 1 if the address was found, 0 otherwise.
 int setWireBegin(int addr)
 {
     for (int j = 0; j < DEVICES; j++)
     {
         if (addr == devices[j].I2Caddr)
         {
+// #define DEBUG_SCAN
 #ifdef DEBUG_SCAN
             Serial.printf("-> address 0x%x sca %d scl %d \n", addr, devices[j].sca, devices[j].scl);
 #endif
@@ -419,6 +419,20 @@ int setWireBegin(int addr)
 
     return 0;
 }
+
+/**
+ * @brief Converts a 16-byte IV buffer into comma-separated lowercase hex ASCII.
+ *
+ * Each byte is formatted as `xx,` and written into a fixed local buffer. The
+ * trailing comma is replaced with a null terminator before the result is
+ * returned as an Arduino `String`.
+ *
+ * Example output:
+ * `01,af,3c,00,...,7e`
+ *
+ * @param iv Pointer to the IV byte array (expected length: 16 bytes).
+ * @return String Comma-separated hex representation of the IV.
+ */
 String convert2hexAscii(unsigned char *iv)
 {
     char hexAscii[49]; // 16*3 +1
@@ -431,9 +445,32 @@ String convert2hexAscii(unsigned char *iv)
     String returnString = hexAscii;
     return returnString;
 }
-// Prints the I2C address, SDA, and SCL pin values for `deviceNo` to Serial.
+
+// Prints one populated `devices[]` entry to Serial: I2C address plus mapped SDA/SCL pins.
 void printDevice(int deviceNo)
 {
-    Serial.printf("I2c addr 0x%x sca %d(%s) scl %d(%s)  \n",
-                  devices[deviceNo].I2Caddr, devices[deviceNo].sca, devices[deviceNo].scaPin, devices[deviceNo].scl, devices[deviceNo].sclPin);
+    Serial.printf("I2c addr 0x%x sca %s(%d) scl %s(%d) \n",
+                  devices[deviceNo].I2Caddr,
+                  devices[deviceNo].scaGPIO, devices[deviceNo].sca,
+                  devices[deviceNo].sclGPIO, devices[deviceNo].scl);
+}
+void dumpI2C(char *results)
+{
+
+    int deviceNo = 0;
+    String tmp;
+    tmp.clear();
+    // 76:D2(4),D1(5)|77:D2(3),D5(14)|
+
+    while (devices[deviceNo].I2Caddr)
+    {
+        sprintf(results, "%x:%s(%d),%s(%d)|",
+                devices[deviceNo].I2Caddr,
+                devices[deviceNo].scaGPIO, devices[deviceNo].sca,
+                devices[deviceNo].sclGPIO, devices[deviceNo].scl);
+        tmp.concat(results);
+
+        deviceNo++;
+    }
+    strcpy(results, tmp.c_str());
 }
