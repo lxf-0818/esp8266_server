@@ -216,9 +216,10 @@ void getSensorData(char *cmd, char *str)
 
     if (BMX_CNFG && setWireBegin(BMPX_ADDRESS))
     {
-        sprintf(str, "%x,%f,%f,|,", BMPX_ADDRESS,
+        sprintf(str, "%x,%f,%f,%f,|,", BMPX_ADDRESS,
                 bmp3xx.readTemperature() * 1.8 + 32,
-                bmp3xx.readPressure() / 100);
+                bmp3xx.readPressure() / 100,
+                bmp3xx.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
     }

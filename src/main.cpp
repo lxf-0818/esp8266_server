@@ -106,6 +106,7 @@ char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
  *
  * @note Interrupt setup on D6 is intentionally disabled (left commented in source).
  */
+
 void setup()
 {
 
@@ -145,7 +146,6 @@ void setup()
       else
         break;
     }
-
     // getBuildTime(buildTime);
     serverAsyn.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request)
                   { request->send(200, "text/plain", "Hi! I am ESP8266."); });
@@ -282,3 +282,10 @@ void getBuildTime(char *buildTime)
   }
   Serial.printf("Boot time: %s\n", buildTime);
 }
+// Function accepts a pointer and the size
+// void printStrings(std::string arr[], int size) { 
+//     for (int i = 0; i < size; i++) {
+//         //std::cout << arr[i] << " ";
+//         Serial.printf("arr %s\n",arr[i]);
+//     }
+// }

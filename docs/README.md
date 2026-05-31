@@ -24,7 +24,7 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 ## Protocol Summary
 - TCP port: 8888
 - Sensor read command: `ALL` (case-insensitive — received command is uppercased)
-- Control commands: `BLK`, `RST` (handled by `performSystemTask()`)
+- Control commands: `BLK`, `RST`, `I2C` (handled by `performSystemTask()`)
 - Sensor response format (AES on): `<crc32_hex>:<ciphertext>:<iv_hex_csv>`
 - Sensor response format (AES disabled build): `<crc32_hex>:<plaintext>`
 - Non-`ALL` response format: `<cmd>_<server_IPv4>`
