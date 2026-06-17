@@ -36,7 +36,9 @@
 #include <Adafruit_BME280.h>
 #include <Adafruit_BMP280.h>
 #include "Adafruit_BMP3XX.h"
+#include "Adafruit_BME680.h"
 #include <Adafruit_ADS1X15.h>
+#include "Adafruit_INA219.h"
 #include <SHT85.h>
 #include <Adafruit_Sensor.h>
 #include <AESLib.h>
@@ -53,6 +55,7 @@
 #define BMP_ADDRESS 0x58
 #define ADC_ADDRESS 0x48
 #define MCP_ADDRESS 0x18
+#define INA_ADDRESS 0x40
 #define DEVICES 8
 #define SEALEVELPRESSURE_HPA (1012.8)
 
@@ -78,11 +81,15 @@ int myCnt = 0;
 Adafruit_BME280 bme;
 Adafruit_BMP280 bmp;
 Adafruit_BMP3XX bmp3xx;
+Adafruit_BME680 bme680; // I2C
 Adafruit_ADS1115 adc;
+Adafruit_INA219 ina219;
+
 SHT35 sht;
 
 bool BME_CNFG = false, BMP_CNFG = false, BMX_CNFG = false,
-     ADC_CNFG = false, DS1_CNFG = false, SHT_CNFG = false;
+     ADC_CNFG = false, DS1_CNFG = false, SHT_CNFG = false,
+     INA_CNFG = false, BM6_CNFG = false;
 struct I2C
 {
     int I2Caddr;
@@ -129,12 +136,25 @@ int configSensors(char *sensorName)
     }
 
     scanI2Cports();
-
+    setWireBegin(BMPX_ADDRESS);
+    if (bme680.begin())
+    {
+        sensorArray[sensorsInstalled] = "BM6";
+        BM6_CNFG = true;
+        sensorsInstalled++;
+    }
     setWireBegin(BMPX_ADDRESS);
     if (bmp3xx.begin_I2C(BMPX_ADDRESS))
     {
         sensorArray[sensorsInstalled] = "BMX";
         BMX_CNFG = true;
+        sensorsInstalled++;
+    }
+    setWireBegin(INA_ADDRESS);
+    if (ina219.begin())
+    {
+        sensorArray[sensorsInstalled] = "INA";
+        INA_CNFG = true;
         sensorsInstalled++;
     }
     setWireBegin(BMx_ADDRESS);
@@ -210,15 +230,24 @@ void getSensorData(char *cmd, char *str)
 {
     (void)cmd; // stop warning error
     char tmp[512];
-    //  char encrypt_string[512] = {'\0'}; // Declare encrypt_string
     String sensorsData;
     int deviceCnt = 0;
 
+    if (BM6_CNFG && setWireBegin(BMPX_ADDRESS))
+    {
+          sprintf(str, "%x,%f,%u,%f,|,", BMPX_ADDRESS+1,
+                bme680.readTemperature() * 1.8 + 32,
+                bme680.gas_resistance / 1000,
+                bme680.readAltitude(SEALEVELPRESSURE_HPA));
+        sensorsData.concat(str);
+        deviceCnt++;
+      //  Serial.printf("bme680 %s\n", str);
+    }
     if (BMX_CNFG && setWireBegin(BMPX_ADDRESS))
     {
-        sprintf(str, "%x,%f,%f,%f,|,", BMPX_ADDRESS,
+        sprintf(str, "%x,%f,%u,%f,|,", BMPX_ADDRESS,
                 bmp3xx.readTemperature() * 1.8 + 32,
-                bmp3xx.readPressure() / 100,
+               (uint32_t) bmp3xx.readPressure() / 100,
                 bmp3xx.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
@@ -237,6 +266,14 @@ void getSensorData(char *cmd, char *str)
         sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
                 bmp.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
+        deviceCnt++;
+    }
+    if (INA_CNFG && setWireBegin(INA_ADDRESS))
+    {
+
+        sprintf(str, "%x,%f,%f,|,", INA219_ADDRESS, ina219.getBusVoltage_V(), ina219.getCurrent_mA());
+        sensorsData.concat(str);
+        Serial.printf("busV %f I %f\n", ina219.getBusVoltage_V(), ina219.getCurrent_mA());
         deviceCnt++;
     }
     if (SHT_CNFG && setWireBegin(SHT_ADDRESS))
@@ -361,7 +398,7 @@ int check_if_exist_I2C(uint8_t i, uint8_t j)
 {
     byte error;
     int nDevices = 0;
-    uint8_t supportedSensors[] = {0x44, 0x76, 0x18, 0x58, 0x48, 0x77};
+    uint8_t supportedSensors[] = {0x44, 0x76, 0x18, 0x58, 0x48, 0x77, 0x40};
     for (uint8_t index = 0; index < sizeof(supportedSensors); index++)
     {
         // The i2c_scanner uses the return value of

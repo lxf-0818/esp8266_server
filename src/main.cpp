@@ -73,6 +73,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ElegantOTA.h>
 #include "time.h"
+#include <Ticker.h>
 
 char results[512], buildTime[20];
 int configSensors(char *sensorName);
@@ -85,12 +86,18 @@ void IRAM_ATTR isr();
 void getBuildTime(char *lastBook);
 void upDateTableI2C(String sensorName, int deviceNo);
 String performHttpGet(const char *url);
+void lwdtFeed(void);
+#define LWD_TIMEOUT 600 * 1000 // Reboot if loop watchdog timer reaches this time out value
+unsigned long lwdTime = 0;
+unsigned long lwdTimeout = LWD_TIMEOUT;
+void IRAM_ATTR lwdtcb(void);
 
 #define PORT 8888
 WiFiServer server(PORT); // port to listen on
 WiFiClient client;
 AsyncWebServer serverAsyn(80);
 char cmdFromClient[80], sensorName[100] = {0}, str[80], Buf[80];
+Ticker lwdTicker;
 
 /**
  * @brief Performs one-time startup for the ESP8266 sensor server.
@@ -114,17 +121,22 @@ void setup()
   Serial.begin(115200);
   Serial.println();
   pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH); // turn off
+  digitalWrite(LED_BUILTIN, HIGH);          // turn off
+  lwdTicker.attach_ms(LWD_TIMEOUT, lwdtcb); // attach lwdt callback routine to Ticker object
+
   cnt = configSensors(sensorName);
   if (cnt > 0)
   {
-
     server.begin();
-    beginWIFI(sensorName);
     char macAddr[80];
     WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
-    String phpScript = "http://192.168.1.252/deleteI2C.php?key=" + (String)macAddr;
+    Serial.printf("mac @ %s\n", macAddr);
+    beginWIFI(sensorName);
+    String phpScript = "http://192.168.1.9/deleteI2C.php?key=" + (String)macAddr;
     String payload = performHttpGet(phpScript.c_str());
+
+    // String payload = performHttpGet(phpScript.c_str());
+    // Serial.printf("delete mac %s\n", payload.c_str());
 
     String sensor = sensorName;
     sensor.concat("_");
@@ -139,7 +151,7 @@ void setup()
         String name = sensor.substring(0, j);
         printDevice(z);
         upDateTableI2C(name, z);
-        // Advance to the remaining tags 
+        // Advance to the remaining tags
         z++;
         sensor = sensor.substring(j + 1);
       }
@@ -151,12 +163,10 @@ void setup()
                   { request->send(200, "text/plain", "Hi! I am ESP8266."); });
     serverAsyn.begin();
     ElegantOTA.begin(&serverAsyn);
+    lwdtFeed();
   }
   else
-  {
-
     Serial.println("\n No Valid Sensor Found check wiring");
-  }
 
   // pinMode(D6, INPUT_PULLUP);
   // attachInterrupt(digitalPinToInterrupt(D6), isr, CHANGE);
@@ -190,7 +200,6 @@ void setup()
 void loop()
 {
   ElegantOTA.loop();
-
   unsigned j = 0;
   client = server.accept(); //
   if (client)
@@ -229,28 +238,29 @@ void loop()
     client.print(results);
     client.stop();
     Serial.println(results);
+    lwdtFeed();
 
   } // end if client
 } //
-/**
- * @brief GPIO interrupt service routine (reserved for future use).
- *
- * Placed in IRAM via ICACHE_RAM_ATTR. Currently blinks LED_BUILTIN once (500 ms on/off)
- * a nd prints "in isr" to Serial. The triggering pin (D6, CHANGE) is configured but
- * the attachInterrupt() call is commented out in setup().
- */
-void ICACHE_RAM_ATTR isr()
-{
+// /**
+//  * @brief GPIO interrupt service routine (reserved for future use).
+//  *
+//  * Placed in IRAM via ICACHE_RAM_ATTR. Currently blinks LED_BUILTIN once (500 ms on/off)
+//  * a nd prints "in isr" to Serial. The triggering pin (D6, CHANGE) is configured but
+//  * the attachInterrupt() call is commented out in setup().
+//  */
+// void ICACHE_RAM_ATTR isr()
+// {
 
-  for (int i = 0; i < 1; i++)
-  {
-    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
-    delay(500);                      // Wait for a second
-    digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH47
-    delay(500);
-  }
-  Serial.println("in isr");
-}
+//   for (int i = 0; i < 1; i++)
+//   {
+//     digitalWrite(LED_BUILTIN, HIGH); // Turn the LED on (Note that LOW is the voltage leve
+//     delay(500);                      // Wait for a second
+//     digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH47
+//     delay(500);
+//   }
+//   Serial.println("in isr");
+// }
 
 void getBuildTime(char *buildTime)
 {
@@ -283,9 +293,45 @@ void getBuildTime(char *buildTime)
   Serial.printf("Boot time: %s\n", buildTime);
 }
 // Function accepts a pointer and the size
-// void printStrings(std::string arr[], int size) { 
+// void printStrings(std::string arr[], int size) {
 //     for (int i = 0; i < size; i++) {
 //         //std::cout << arr[i] << " ";
 //         Serial.printf("arr %s\n",arr[i]);
 //     }
 // }
+/**
+ * @brief Resets the lightweight watchdog timer by updating the current time and timeout.
+ *
+ * This function sets the `lwdTime` variable to the current time (in milliseconds)
+ * and calculates the new timeout value by adding the predefined `LWD_TIMEOUT`
+ * to the current time. It ensures that the lightweight watchdog timer does not
+ * trigger a timeout as long as this function is called periodically.
+ */
+void lwdtFeed(void)
+{
+  lwdTime = millis();
+  lwdTimeout = lwdTime + LWD_TIMEOUT;
+}
+/*
+This function is a lightweight watchdog callback that checks whether the main loop is still being serviced on time.
+The `IRAM_ATTR` attribute places it in instruction RAM, which is typically required for timer/ISR-safe execution
+on ESP targets.
+
+The `if` condition has two failure checks joined by `||`.
+The first check, `millis() - lwdTime > LWD_TIMEOUT`, detects a missed heartbeat (too much time since the last feed).
+The second, `lwdTimeout - lwdTime != LWD_TIMEOUT`, verifies internal timeout bookkeeping consistency. If either condition
+is true, the system is considered unhealthy.
+
+On failure, it logs two diagnostic values: actual elapsed time since last feed and the stored timeout delta.
+It then immediately calls `ESP.restart()` to recover.
+This is a fail-fast recovery path intended to restore operation after stalls or corrupted timing state.
+*/
+void IRAM_ATTR lwdtcb(void)
+{
+  if ((millis() - lwdTime > LWD_TIMEOUT) || (lwdTimeout - lwdTime != LWD_TIMEOUT))
+  {
+    // Log elapsed-vs-expected watchdog timing before forcing recovery.
+    Serial.printf("3rd_WDTimer esp.restart %lu %lu\n", (millis() - lwdTime), (lwdTimeout - lwdTime));
+    ESP.restart();
+  }
+}
