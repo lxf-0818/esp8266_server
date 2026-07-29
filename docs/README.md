@@ -1,5 +1,7 @@
 # ESP8266 Server Docs
 
+Last updated: 2026-06-30
+
 ## Scope
 This folder documents the ESP8266 TCP sensor server modules in `src/`.
 
@@ -31,13 +33,14 @@ This folder documents the ESP8266 TCP sensor server modules in `src/`.
 
 ## Runtime Sequence
 1. `setup()` scans/initializes sensors via `configSensors()`.
-2. If sensors found: prints detected I2C mappings, starts `WiFiServer`, joins Wi-Fi/registers with backend, and starts async web + ElegantOTA services.
+2. If sensors found: starts `WiFiServer`, joins Wi-Fi/registers with backend, clears stale I2C rows, uploads per-sensor I2C mapping, and starts async web + ElegantOTA services.
 3. If no sensors found: prints `No Valid Sensor Found check wiring`; Wi-Fi/TCP/OTA services do not start.
 4. `LED_BUILTIN` is configured as output during setup.
-5. D6 interrupt setup is present only as commented code; ISR is not attached in current flow.
-5. `loop()` accepts one client at a time; 5-second inactivity timeout; reads command (uppercased, max 79 chars).
-6. If command contains `ALL`: calls `getSensorData()` and returns encrypted/CRC payload.
-7. Otherwise: returns `<cmd>_<server_IP>` and calls `performSystemTask()`.
+5. A loop watchdog ticker (`LWD_TIMEOUT = 600000 ms`) is started in setup and fed after each processed request.
+6. D6 interrupt setup is present only as commented code; ISR is not attached in current flow.
+7. `loop()` accepts one client at a time; 5-second inactivity timeout; reads command (uppercased, max 79 chars).
+8. If command contains `ALL`: calls `getSensorData()` and returns encrypted/CRC payload.
+9. Otherwise: calls `performSystemTask(cmd, results)` to build non-ALL reply and run side effects.
 
 ## Notes
 - Socket payload may be AES/base64 encrypted depending on compile flags (`SOCKET_AES` is enabled by default).

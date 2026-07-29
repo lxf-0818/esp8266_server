@@ -39,10 +39,11 @@ String performHttpGet(const char *url);
 extern String apiKeyValue;
 void conver2hexAscii(unsigned char *iv);
 int writeLittle(char *fileName, const char *message);
+extern String phpServerIP;
 
 const std::map<String, String> locMap =
     {
-        {"48:55:19:ED:15:C6", "Master Bedroom"},
+        {"48:3F:DA:5C:F9:F2", "Master Bedroom"},
         {"48:55:19:ED:B8:B4", "Main Room"},
         {"58:BF:25:DA:AE:59", "Mud Room"},
         {"48:55:19:ED:1E:2D", "Laundry Room"},
@@ -118,7 +119,7 @@ int beginWIFI(String sensorName)
   // remove existing entry in DB based on IP@
   char macAddr[80];
   WiFi.macAddress().toCharArray(macAddr, sizeof(macAddr));
-  String phpScript = "http://192.168.1.9/deleteMAC.php?key=" + (String)macAddr;
+  String phpScript = phpServerIP + "deleteMAC.php?key=" + (String)macAddr;
   performHttpGet(phpScript.c_str());
   upDateTableIPstatic(sensorName);
 
@@ -138,7 +139,6 @@ int beginWIFI(String sensorName)
  *       Ensure that the device is connected to WiFi before calling this function.
  *
  * @details
- * - The server endpoint is hardcoded as "http://192.168.1.9/saveIP.php".
  * - The API key, board type, and location are also hardcoded within the function.
  * - The function logs the HTTP response code and payload to the serial monitor.
  *
@@ -164,7 +164,8 @@ void upDateTableIPstatic(String sensorName)
   httpRequestData += "&IPv4Address=" + IP;
   httpRequestData += "&macAddress=" + (String)macAddr;
   httpRequestData += "&sensor=" + sensorName;
-  serverName = "http://192.168.1.9/saveIP.php";
+
+  serverName = phpServerIP + "saveIP.php";
   http.begin(client_sql, serverName.c_str());
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   // delay(500);
@@ -235,7 +236,7 @@ void upDateTableI2C(String sensorName, int deviceNo)
   httpRequestData += "&sensor=" + sensorName;
   httpRequestData += "&sca=" + (String)sca;
   httpRequestData += "&scl=" + (String)scl;
-  serverName = "http://192.168.1.9/saveI2C.php";
+  serverName = phpServerIP + "saveI2C.php";
   Serial.printf("httpRequestData %s\n", httpRequestData.c_str());
   http.begin(client_sql, serverName.c_str());
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");

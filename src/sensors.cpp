@@ -235,26 +235,39 @@ void getSensorData(char *cmd, char *str)
 
     if (BM6_CNFG && setWireBegin(BMPX_ADDRESS))
     {
-          sprintf(str, "%x,%f,%u,%f,|,", BMPX_ADDRESS+1,
+        // Tell BME680 to begin measurement.
+        unsigned long endTime = bme680.beginReading();
+        if (endTime == 0)
+        {
+            Serial.println(F("Failed to begin reading :("));
+            return;
+        }
+        if (!bme680.endReading())
+        {
+            Serial.println(F("Failed to complete reading :("));
+            return;
+        }
+        // Serial.printf("Gas Resistance = %.2f KOhm \n", gasResistance);
+        sprintf(str, "%x,%.2f,%u,%.2f,|,", BMPX_ADDRESS + 1,
                 bme680.readTemperature() * 1.8 + 32,
                 bme680.gas_resistance / 1000,
                 bme680.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
-      //  Serial.printf("bme680 %s\n", str);
+        //  Serial.printf("bme680 %s\n", str);
     }
     if (BMX_CNFG && setWireBegin(BMPX_ADDRESS))
     {
-        sprintf(str, "%x,%f,%u,%f,|,", BMPX_ADDRESS,
+        sprintf(str, "%x,%.2f,%u,%.2f,|,", BMPX_ADDRESS,
                 bmp3xx.readTemperature() * 1.8 + 32,
-               (uint32_t) bmp3xx.readPressure() / 100,
+                (uint32_t)bmp3xx.readPressure() / 100,
                 bmp3xx.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
     }
     if (BME_CNFG && setWireBegin(BMx_ADDRESS))
     {
-        sprintf(str, "%x,%f,%f,%f,|,", BMx_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
+        sprintf(str, "%x,%.2f,%.2f,%.2f,|,", BMx_ADDRESS, (bme.readTemperature()) * 1.8 + 32,
                 bme.readHumidity(), bme.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
@@ -262,16 +275,14 @@ void getSensorData(char *cmd, char *str)
 
     if (BMP_CNFG && setWireBegin(BMx_ADDRESS))
     {
-
-        sprintf(str, "%x,%f,%f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
+        sprintf(str, "%x,%.2f,%.2f,|,", BMP280_CHIPID, (bmp.readTemperature()) * 1.8 + 32,
                 bmp.readAltitude(SEALEVELPRESSURE_HPA));
         sensorsData.concat(str);
         deviceCnt++;
     }
     if (INA_CNFG && setWireBegin(INA_ADDRESS))
     {
-
-        sprintf(str, "%x,%f,%f,|,", INA219_ADDRESS, ina219.getBusVoltage_V(), ina219.getCurrent_mA());
+        sprintf(str, "%x,%.2f,%.2f,|,", INA219_ADDRESS, ina219.getBusVoltage_V(), ina219.getCurrent_mA());
         sensorsData.concat(str);
         Serial.printf("busV %f I %f\n", ina219.getBusVoltage_V(), ina219.getCurrent_mA());
         deviceCnt++;
@@ -281,7 +292,7 @@ void getSensorData(char *cmd, char *str)
         if (sht.dataReady())
         {
             sht.read(); // default = true/fast       slow = false
-            sprintf(str, "%x,%f,%f,|,", SHT_ADDRESS, sht.getFahrenheit(), sht.getHumidity());
+            sprintf(str, "%x,%.2f,%.2f,|,", SHT_ADDRESS, sht.getFahrenheit(), sht.getHumidity());
             sensorsData.concat(str);
             deviceCnt++;
         }
@@ -293,7 +304,7 @@ void getSensorData(char *cmd, char *str)
         float rRatio = 5.63;                                         // rRatio = (r1+r2)/r2  where r1 = 220k r2 =47k
         float volts0 = adc.computeVolts(adc.readADC_SingleEnded(0)); // jackery is connected to A0
         float volts1 = adc.computeVolts(adc.readADC_SingleEnded(1)); // A1 is connected to 3V on ESP
-        sprintf(str, "%x,%f,%f,%f|,", ADC_ADDRESS, volts0 * rRatio, volts1, rRatio);
+        sprintf(str, "%x,%.2f,%.2f,%f|,", ADC_ADDRESS, volts0 * rRatio, volts1, rRatio);
         // Serial.printf("A1 is connected to 3V on ESP\n");
         sensorsData.concat(str);
         deviceCnt++;

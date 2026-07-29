@@ -34,6 +34,7 @@ int readAES(char *fileName, byte data[]);
 String readLittle(char *fileName);
 int readEncyptWifiCredentials(char *cssid_psw);
 String apiKeyValue;
+extern String phpServerIP;
 
 AESLib aesLib;
 // AES Encryption Keys
@@ -180,6 +181,8 @@ int readEncyptWifiCredentials(char *ssid_psw)
   readAES((char *)"/iv.txt", iv); // read the "static" IV that was used to create encrypted ssid:pass
   apiKeyValue = readLittle((char *)"/api.txt");
   ssid_psw_aes = readLittle((char *)"/ssid_pass_aes.txt");
+  phpServerIP = readLittle((char *)"/phpServerIP.txt");
+
 
   // String foo = readLittle((char *)"/test.txt");
   // Serial.printf("test.txt %s\n", foo.c_str());
